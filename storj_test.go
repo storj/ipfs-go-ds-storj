@@ -13,7 +13,7 @@ import (
 	"storj.io/uplink"
 )
 
-func TestSuiteLocalStorj(t *testing.T) {
+func TestSuiteStorj(t *testing.T) {
 	// Only run tests when STORJ_ACCESS is set. STORJ_ACCESS must be set to a
 	// valid access grant. The easiest way to set up a local Storj test network
 	// is to use https://github.com/storj/up. After setting it up, executing
