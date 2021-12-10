@@ -41,6 +41,19 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 			},
 			HasErr: true,
 		},
+		{
+			// Optional fields included
+			Input: map[string]interface{}{
+				"bucket":      "somebucket",
+				"accessGrant": "someaccessgrant",
+				"logFile":     "somelogfile",
+			},
+			Want: &StorjConfig{cfg: storjds.Config{
+				Bucket:      "somebucket",
+				AccessGrant: "someaccessgrant",
+				LogFile:     "somelogfile",
+			}},
+		},
 	}
 
 	for i, tc := range testcases {

@@ -46,10 +46,21 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			return nil, fmt.Errorf("storjds: no accessGrant specified")
 		}
 
+		// Optional.
+
+		var logFile string
+		if v, ok := m["logFile"]; ok {
+			logFile, ok = v.(string)
+			if !ok {
+				return nil, fmt.Errorf("storjds: logFile not a string")
+			}
+		}
+
 		return &StorjConfig{
 			cfg: storjds.Config{
 				Bucket:      bucket,
 				AccessGrant: accessGrant,
+				LogFile:     logFile,
 			},
 		}, nil
 	}

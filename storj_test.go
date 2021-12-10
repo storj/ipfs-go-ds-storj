@@ -35,6 +35,12 @@ func TestSuiteStorj(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		err := storj.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	storj.runCleanTest(t, "basic operations", func(t *testing.T) {
 		dstest.SubtestBasicPutGet(t, storj)

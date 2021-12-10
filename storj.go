@@ -7,12 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/zeebo/errs"
 
 	"storj.io/uplink"
 )
@@ -20,21 +23,30 @@ import (
 type StorjDS struct {
 	Config
 	Project *uplink.Project
-	log     *os.File
+	logFile *os.File
+	logger  *log.Logger
 }
 
 type Config struct {
 	AccessGrant string
 	Bucket      string
+	LogFile     string
 }
 
 func NewStorjDatastore(conf Config) (*StorjDS, error) {
-	f, err := os.OpenFile("/tmp/ipfs.log", os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create log file: %s", err)
+	logger := log.New(io.Discard, "", 0) // default no-op logger
+	var logFile *os.File
+
+	if len(conf.LogFile) > 0 {
+		var err error
+		logFile, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create log file: %s", err)
+		}
+		logger = log.New(logFile, "", log.LstdFlags)
 	}
 
-	fmt.Fprintln(f, "NewStorjDatastore")
+	logger.Println("NewStorjDatastore")
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
@@ -49,12 +61,14 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	return &StorjDS{
 		Config:  conf,
 		Project: project,
-		log:     f,
+		logFile: logFile,
+		logger:  logger,
 	}, nil
 }
 
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
-	fmt.Fprintf(storj.log, "Put --- key: %s --- bytes: %d --- type: %s --- parent: %s\n", key.String(), len(value), key.Type(), key.Parent().String())
+	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key.String(), len(value))
+
 	upload, err := storj.Project.UploadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
 		return err
@@ -69,12 +83,13 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 }
 
 func (storj *StorjDS) Sync(prefix ds.Key) error {
-	fmt.Fprintf(storj.log, "Sync --- prefix: %s\n", prefix.String())
+	storj.logger.Printf("Sync --- prefix: %s\n", prefix.String())
 	return nil
 }
 
 func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
-	fmt.Fprintf(storj.log, "Get --- key: %s --- type: %s --- parent: %s\n", key.String(), key.Type(), key.Parent().String())
+	storj.logger.Printf("Get --- key: %s\n", key.String())
+
 	download, err := storj.Project.DownloadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
 		if isNotFound(err) {
@@ -82,11 +97,13 @@ func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 		}
 		return nil, err
 	}
+
 	return ioutil.ReadAll(download)
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
-	fmt.Fprintf(storj.log, "Has --- key: %s --- type: %s --- parent: %s\n", key.String(), key.Type(), key.Parent().String())
+	storj.logger.Printf("Has --- key: %s\n", key.String())
+
 	_, err = storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
 		if isNotFound(err) {
@@ -94,11 +111,14 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 		}
 		return false, err
 	}
+
 	return true, nil
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
-	//fmt.Fprintf(s.log, "GetSize --- key: %s --- type: %s --- parent: %s\n", key.String(), key.Type(), key.Parent().String())
+	// Commented because this method is invoked very often and it is noisy.
+	// storj.logger.Printf("GetSize --- key: %s\n", key.String())
+
 	obj, err := storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
 		if isNotFound(err) {
@@ -106,21 +126,25 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 		}
 		return -1, err
 	}
+
 	return int(obj.System.ContentLength), nil
 }
 
 func (storj *StorjDS) Delete(key ds.Key) error {
-	fmt.Fprintf(storj.log, "Delete --- key: %s --- type: %s --- parent: %s\n", key.String(), key.Type(), key.Parent().String())
+	storj.logger.Printf("Delete --- key: %s\n", key.String())
+
 	_, err := storj.Project.DeleteObject(context.Background(), storj.Bucket, storjKey(key))
 	if isNotFound(err) {
 		// delete is idempotent
 		err = nil
 	}
+
 	return err
 }
 
 func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
-	fmt.Fprintf(storj.log, "Query --- %s\n", q.String())
+	storj.logger.Printf("Query --- %s\n", q.String())
+
 	if q.Orders != nil || q.Filters != nil {
 		return nil, fmt.Errorf("storjds: filters or orders are not supported")
 	}
@@ -168,7 +192,8 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 }
 
 func (storj *StorjDS) Batch() (ds.Batch, error) {
-	fmt.Fprintln(storj.log, "Batch")
+	storj.logger.Println("Batch")
+
 	return &storjBatch{
 		storj: storj,
 		ops:   make(map[ds.Key]batchOp),
@@ -176,15 +201,15 @@ func (storj *StorjDS) Batch() (ds.Batch, error) {
 }
 
 func (storj *StorjDS) Close() error {
-	fmt.Fprintln(storj.log, "Close")
+	storj.logger.Println("Close")
 
-	// TODO: combine errors
 	err := storj.Project.Close()
-	if err != nil {
-		return err
+
+	if storj.logFile != nil {
+		err = errs.Combine(err, storj.logFile.Close())
 	}
 
-	return storj.log.Close()
+	return err
 }
 
 func storjKey(ipfsKey ds.Key) string {
@@ -206,25 +231,29 @@ type batchOp struct {
 }
 
 func (b *storjBatch) Put(key ds.Key, value []byte) error {
-	fmt.Fprintf(b.storj.log, "BatchPut --- key: %s --- bytes: %d --- type: %s --- parent: %s\n", key.String(), len(value), key.Type(), key.Parent().String())
+	b.storj.logger.Printf("BatchPut --- key: %s --- bytes: %d\n", key.String(), len(value))
+
 	b.ops[key] = batchOp{
 		value:  value,
 		delete: false,
 	}
+
 	return nil
 }
 
 func (b *storjBatch) Delete(key ds.Key) error {
-	fmt.Fprintf(b.storj.log, "BatchDelete --- key: %s --- type: %s --- parent: %s\n", key.String(), key.Type(), key.Parent().String())
+	b.storj.logger.Printf("BatchDelete --- key: %s\n", key.String())
+
 	b.ops[key] = batchOp{
 		value:  nil,
 		delete: true,
 	}
+
 	return nil
 }
 
 func (b *storjBatch) Commit() error {
-	fmt.Fprintln(b.storj.log, "BatchCommit")
+	b.storj.logger.Println("BatchCommit")
 
 	for key, op := range b.ops {
 		var err error

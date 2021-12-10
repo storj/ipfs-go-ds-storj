@@ -60,6 +60,7 @@ The `config` file should include the following:
             "type": "storjds",
             "bucket": "$bucketname",
             "accessGrant": "$accessGrant",
+            "logFile": "$pathToLogFile",
           },
           "mountpoint": "/blocks",
           "prefix": "storj.datastore",
@@ -70,6 +71,8 @@ The `config` file should include the following:
 `$bucketname` is a bucket on Storj DCS. It must be created.
 
 `$accessGrant` is an access grant for Storj DCS with full permission on the entire `$bucketname` bucket.
+
+The `logFile` config is optional. If set, it enables logging for this plugin.
 
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
