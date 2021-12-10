@@ -67,7 +67,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 }
 
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
-	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key.String(), len(value))
+	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
 
 	upload, err := storj.Project.UploadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
@@ -83,12 +83,12 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 }
 
 func (storj *StorjDS) Sync(prefix ds.Key) error {
-	storj.logger.Printf("Sync --- prefix: %s\n", prefix.String())
+	storj.logger.Printf("Sync --- prefix: %s\n", prefix)
 	return nil
 }
 
 func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
-	storj.logger.Printf("Get --- key: %s\n", key.String())
+	storj.logger.Printf("Get --- key: %s\n", key)
 
 	download, err := storj.Project.DownloadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
@@ -102,7 +102,7 @@ func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
-	storj.logger.Printf("Has --- key: %s\n", key.String())
+	storj.logger.Printf("Has --- key: %s\n", key)
 
 	_, err = storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
@@ -117,7 +117,7 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
-	// storj.logger.Printf("GetSize --- key: %s\n", key.String())
+	// storj.logger.Printf("GetSize --- key: %s\n", key)
 
 	obj, err := storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
@@ -131,7 +131,7 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 }
 
 func (storj *StorjDS) Delete(key ds.Key) error {
-	storj.logger.Printf("Delete --- key: %s\n", key.String())
+	storj.logger.Printf("Delete --- key: %s\n", key)
 
 	_, err := storj.Project.DeleteObject(context.Background(), storj.Bucket, storjKey(key))
 	if isNotFound(err) {
@@ -143,7 +143,7 @@ func (storj *StorjDS) Delete(key ds.Key) error {
 }
 
 func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
-	storj.logger.Printf("Query --- %s\n", q.String())
+	storj.logger.Printf("Query --- %s\n", q)
 
 	if q.Orders != nil || q.Filters != nil {
 		return nil, fmt.Errorf("storjds: filters or orders are not supported")
@@ -231,7 +231,7 @@ type batchOp struct {
 }
 
 func (b *storjBatch) Put(key ds.Key, value []byte) error {
-	b.storj.logger.Printf("BatchPut --- key: %s --- bytes: %d\n", key.String(), len(value))
+	b.storj.logger.Printf("BatchPut --- key: %s --- bytes: %d\n", key, len(value))
 
 	b.ops[key] = batchOp{
 		value:  value,
@@ -242,7 +242,7 @@ func (b *storjBatch) Put(key ds.Key, value []byte) error {
 }
 
 func (b *storjBatch) Delete(key ds.Key) error {
-	b.storj.logger.Printf("BatchDelete --- key: %s\n", key.String())
+	b.storj.logger.Printf("BatchDelete --- key: %s\n", key)
 
 	b.ops[key] = batchOp{
 		value:  nil,
