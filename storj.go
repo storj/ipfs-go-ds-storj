@@ -22,7 +22,7 @@ import (
 
 type StorjDS struct {
 	Config
-	Project *uplink.Project
+	project *uplink.Project
 	logFile *os.File
 	logger  *log.Logger
 }
@@ -60,7 +60,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 
 	return &StorjDS{
 		Config:  conf,
-		Project: project,
+		project: project,
 		logFile: logFile,
 		logger:  logger,
 	}, nil
@@ -69,7 +69,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
 
-	upload, err := storj.Project.UploadObject(context.Background(), storj.Bucket, storjKey(key), nil)
+	upload, err := storj.project.UploadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (storj *StorjDS) Sync(prefix ds.Key) error {
 func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 	storj.logger.Printf("Get --- key: %s\n", key)
 
-	download, err := storj.Project.DownloadObject(context.Background(), storj.Bucket, storjKey(key), nil)
+	download, err := storj.project.DownloadObject(context.Background(), storj.Bucket, storjKey(key), nil)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, ds.ErrNotFound
@@ -104,7 +104,7 @@ func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has --- key: %s\n", key)
 
-	_, err = storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
+	_, err = storj.project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
 		if isNotFound(err) {
 			return false, nil
@@ -119,7 +119,7 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize --- key: %s\n", key)
 
-	obj, err := storj.Project.StatObject(context.Background(), storj.Bucket, storjKey(key))
+	obj, err := storj.project.StatObject(context.Background(), storj.Bucket, storjKey(key))
 	if err != nil {
 		if isNotFound(err) {
 			return -1, ds.ErrNotFound
@@ -133,7 +133,7 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 func (storj *StorjDS) Delete(key ds.Key) error {
 	storj.logger.Printf("Delete --- key: %s\n", key)
 
-	_, err := storj.Project.DeleteObject(context.Background(), storj.Bucket, storjKey(key))
+	_, err := storj.project.DeleteObject(context.Background(), storj.Bucket, storjKey(key))
 	if isNotFound(err) {
 		// delete is idempotent
 		err = nil
@@ -152,7 +152,7 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 	// Storj stores a "/foo" key as "foo" so we need to trim the leading "/"
 	q.Prefix = strings.TrimPrefix(q.Prefix, "/")
 
-	list := storj.Project.ListObjects(context.Background(), storj.Bucket, &uplink.ListObjectsOptions{
+	list := storj.project.ListObjects(context.Background(), storj.Bucket, &uplink.ListObjectsOptions{
 		Prefix:    q.Prefix,
 		Recursive: true,
 		System:    true, // TODO: enable only if q.ReturnsSizes = true
@@ -203,7 +203,7 @@ func (storj *StorjDS) Batch() (ds.Batch, error) {
 func (storj *StorjDS) Close() error {
 	storj.logger.Println("Close")
 
-	err := storj.Project.Close()
+	err := storj.project.Close()
 
 	if storj.logFile != nil {
 		err = errs.Combine(err, storj.logFile.Close())

@@ -66,18 +66,18 @@ func TestSuiteStorj(t *testing.T) {
 }
 
 func (storj *StorjDS) runCleanTest(t *testing.T, name string, f func(t *testing.T)) {
-	_, err := storj.Project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
+	_, err := storj.project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
 	if err != nil && !errors.Is(err, uplink.ErrBucketNotFound) {
 		t.Fatal(err)
 	}
 
-	_, err = storj.Project.CreateBucket(context.Background(), storj.Bucket)
+	_, err = storj.project.CreateBucket(context.Background(), storj.Bucket)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
-		_, err := storj.Project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
+		_, err := storj.project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
 		if err != nil {
 			t.Fatal(err)
 		}
