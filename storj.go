@@ -5,16 +5,18 @@ package storjds
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 	"github.com/zeebo/errs"
 
 	"storj.io/uplink"
@@ -22,15 +24,18 @@ import (
 
 type StorjDS struct {
 	Config
-	project *uplink.Project
 	logFile *os.File
 	logger  *log.Logger
+	db      *dbx.DB
+	project *uplink.Project
+	packer  *packer
 }
 
 type Config struct {
-	AccessGrant string
-	Bucket      string
-	LogFile     string
+	AccessGrant  string
+	Bucket       string
+	LogFile      string
+	PackInterval time.Duration
 }
 
 func NewStorjDatastore(conf Config) (*StorjDS, error) {
@@ -48,6 +53,16 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 
 	logger.Println("NewStorjDatastore")
 
+	db, err := dbx.Open("sqlite3", "cache.db")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open cache database: %s", err)
+	}
+
+	_, err = db.ExecContext(context.Background(), db.Schema())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache database schema: %s", err)
+	}
+
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse access grant: %s", err)
@@ -55,42 +70,52 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 
 	project, err := uplink.OpenProject(context.Background(), access)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open project: %s", err)
+		return nil, fmt.Errorf("failed to open Storj project: %s", err)
+	}
+
+	packer := packer{
+		logger:   logger,
+		db:       db,
+		project:  project,
+		interval: conf.PackInterval,
 	}
 
 	return &StorjDS{
 		Config:  conf,
-		project: project,
 		logFile: logFile,
 		logger:  logger,
+		db:      db,
+		project: project,
+		packer:  &packer,
 	}, nil
 }
 
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
 
-	upload, err := storj.project.UploadObject(context.Background(), storj.Bucket, storjKey(key), nil)
-	if err != nil {
-		return err
-	}
+	_, err := storj.db.Create_Block(context.Background(),
+		dbx.Block_Cid(storjKey(key)),
+		dbx.Block_Size(len(value)),
+		dbx.Block_Create_Fields{
+			Data: dbx.Block_Data(value),
+		},
+	)
 
-	_, err = upload.Write(value)
-	if err != nil {
-		return err
-	}
-
-	return upload.Commit()
+	return err
 }
 
 func (storj *StorjDS) Sync(prefix ds.Key) error {
 	storj.logger.Printf("Sync --- prefix: %s\n", prefix)
+
+	storj.packer.ensureRunning(context.Background())
+
 	return nil
 }
 
 func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 	storj.logger.Printf("Get --- key: %s\n", key)
 
-	download, err := storj.project.DownloadObject(context.Background(), storj.Bucket, storjKey(key), nil)
+	block, err := storj.db.Get_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, ds.ErrNotFound
@@ -98,28 +123,25 @@ func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 		return nil, err
 	}
 
-	return ioutil.ReadAll(download)
+	return block.Data, nil
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has --- key: %s\n", key)
 
-	_, err = storj.project.StatObject(context.Background(), storj.Bucket, storjKey(key))
+	found, err := storj.db.Has_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
 	if err != nil {
-		if isNotFound(err) {
-			return false, nil
-		}
 		return false, err
 	}
 
-	return true, nil
+	return found, nil
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize --- key: %s\n", key)
 
-	obj, err := storj.project.StatObject(context.Background(), storj.Bucket, storjKey(key))
+	block, err := storj.db.Get_Block_Size_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
 	if err != nil {
 		if isNotFound(err) {
 			return -1, ds.ErrNotFound
@@ -127,16 +149,15 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 		return -1, err
 	}
 
-	return int(obj.System.ContentLength), nil
+	return block.Size, nil
 }
 
 func (storj *StorjDS) Delete(key ds.Key) error {
 	storj.logger.Printf("Delete --- key: %s\n", key)
 
-	_, err := storj.project.DeleteObject(context.Background(), storj.Bucket, storjKey(key))
-	if isNotFound(err) {
-		// delete is idempotent
-		err = nil
+	_, err := storj.db.Delete_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	if err != nil {
+		return err
 	}
 
 	return err
@@ -145,6 +166,7 @@ func (storj *StorjDS) Delete(key ds.Key) error {
 func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 	storj.logger.Printf("Query --- %s\n", q)
 
+	// TODO: implement orders and filters
 	if q.Orders != nil || q.Filters != nil {
 		return nil, fmt.Errorf("storjds: filters or orders are not supported")
 	}
@@ -152,14 +174,21 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 	// Storj stores a "/foo" key as "foo" so we need to trim the leading "/"
 	q.Prefix = strings.TrimPrefix(q.Prefix, "/")
 
-	list := storj.project.ListObjects(context.Background(), storj.Bucket, &uplink.ListObjectsOptions{
-		Prefix:    q.Prefix,
-		Recursive: true,
-		System:    true, // TODO: enable only if q.ReturnsSizes = true
-		// Cursor: TODO,
-	})
-	if list.Err() != nil {
-		return nil, list.Err()
+	// TODO: optimize with prepared statements
+	query := "SELECT cid, size, data FROM blocks"
+	if len(q.Prefix) > 0 {
+		query += fmt.Sprintf(" WHERE key LIKE '%s%%' ORDER BY key", q.Prefix)
+	}
+	if q.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", q.Limit)
+	}
+	if q.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", q.Offset)
+	}
+
+	rows, err := storj.db.Query(query)
+	if err != nil {
+		return nil, err
 	}
 
 	return dsq.ResultsFromIterator(q, dsq.Iterator{
@@ -167,25 +196,32 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 			return nil
 		},
 		Next: func() (dsq.Result, bool) {
-			// TODO: skip offset, apply limit
-			more := list.Next()
-			if !more {
-				if list.Err() != nil {
-					return dsq.Result{Error: list.Err()}, false
-				}
+			if !rows.Next() {
 				return dsq.Result{}, false
 			}
-			entry := dsq.Entry{
-				Key:  "/" + list.Item().Key,
-				Size: int(list.Item().System.ContentLength),
+
+			var (
+				key  string
+				size int
+				data []byte
+			)
+
+			err := rows.Scan(&key, &size, &data)
+			if err != nil {
+				return dsq.Result{Error: err}, false
 			}
+
+			entry := dsq.Entry{Key: "/" + key}
+
 			if !q.KeysOnly {
-				value, err := storj.Get(ds.NewKey(entry.Key))
-				if err != nil {
-					return dsq.Result{Error: err}, false
-				}
-				entry.Value = value
+				// TODO: optimize to not read this column from DB
+				entry.Value = data
 			}
+			if q.ReturnsSizes {
+				// TODO: optimize to not read this column from DB
+				entry.Size = size
+			}
+
 			return dsq.Result{Entry: entry}, true
 		},
 	}), nil
@@ -203,7 +239,11 @@ func (storj *StorjDS) Batch() (ds.Batch, error) {
 func (storj *StorjDS) Close() error {
 	storj.logger.Println("Close")
 
-	err := storj.project.Close()
+	err := errs.Combine(
+		storj.packer.Close(),
+		storj.project.Close(),
+		storj.db.Close(),
+	)
 
 	if storj.logFile != nil {
 		err = errs.Combine(err, storj.logFile.Close())
@@ -217,7 +257,7 @@ func storjKey(ipfsKey ds.Key) string {
 }
 
 func isNotFound(err error) bool {
-	return errors.Is(err, uplink.ErrObjectNotFound)
+	return errors.Is(err, uplink.ErrObjectNotFound) || errors.Is(err, sql.ErrNoRows)
 }
 
 type storjBatch struct {

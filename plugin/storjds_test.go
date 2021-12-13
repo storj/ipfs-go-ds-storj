@@ -6,6 +6,7 @@ package plugin
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
 )
@@ -44,15 +45,26 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Optional fields included
 			Input: map[string]interface{}{
-				"bucket":      "somebucket",
-				"accessGrant": "someaccessgrant",
-				"logFile":     "somelogfile",
+				"bucket":       "somebucket",
+				"accessGrant":  "someaccessgrant",
+				"logFile":      "somelogfile",
+				"packInterval": "3m",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
-				Bucket:      "somebucket",
-				AccessGrant: "someaccessgrant",
-				LogFile:     "somelogfile",
+				Bucket:       "somebucket",
+				AccessGrant:  "someaccessgrant",
+				LogFile:      "somelogfile",
+				PackInterval: 3 * time.Minute,
 			}},
+		},
+		{
+			// Invalid packInterval format
+			Input: map[string]interface{}{
+				"bucket":       "somebucket",
+				"accessGrant":  "someaccessgrant",
+				"packInterval": "3",
+			},
+			HasErr: true,
 		},
 	}
 

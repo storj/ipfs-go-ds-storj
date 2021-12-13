@@ -1,0 +1,30 @@
+// dbx.v1 golang cachedb.dbx .
+
+model block (
+    key cid
+
+    field cid           text
+    field size          int
+    field created       timestamp   ( autoinsert )
+    field data          blob        ( updatable, nullable )
+    field deleted       bool        ( autoinsert, updatable )
+    field pack_object   text        ( autoinsert, updatable )
+    field pack_offset   int         ( autoinsert, updatable )
+    field pack_status   int         ( autoinsert, updatable )
+)
+
+create block ( )
+delete block ( where block.cid = ? )
+
+read has (
+    select block
+    where block.cid = ?
+)
+read one (
+    select block.size
+    where block.cid = ?
+)
+read one (
+    select block
+    where block.cid = ?
+)

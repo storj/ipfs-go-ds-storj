@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
@@ -56,11 +57,25 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			}
 		}
 
+		var packInterval time.Duration
+		if v, ok := m["packInterval"]; ok {
+			interval, ok := v.(string)
+			if !ok {
+				return nil, fmt.Errorf("storjds: packInterval not a string")
+			}
+			var err error
+			packInterval, err = time.ParseDuration(interval)
+			if err != nil {
+				return nil, fmt.Errorf("storjds: packInterval not a duration: %v", err)
+			}
+		}
+
 		return &StorjConfig{
 			cfg: storjds.Config{
-				Bucket:      bucket,
-				AccessGrant: accessGrant,
-				LogFile:     logFile,
+				Bucket:       bucket,
+				AccessGrant:  accessGrant,
+				LogFile:      logFile,
+				PackInterval: packInterval,
 			},
 		}, nil
 	}

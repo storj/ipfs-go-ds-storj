@@ -8,7 +8,9 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/ipfs/go-datastore"
 	dstest "github.com/ipfs/go-datastore/test"
 	"storj.io/uplink"
 )
@@ -27,8 +29,9 @@ func TestSuiteStorj(t *testing.T) {
 	}
 
 	config := Config{
-		Bucket:      "testbucket",
-		AccessGrant: access,
+		Bucket:       "testbucket",
+		AccessGrant:  access,
+		PackInterval: 100 * time.Millisecond,
 	}
 
 	storj, err := NewStorjDatastore(config)
@@ -84,4 +87,9 @@ func (storj *StorjDS) runCleanTest(t *testing.T, name string, f func(t *testing.
 	}()
 
 	t.Run(name, f)
+
+	err = storj.Sync(datastore.Key{})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
