@@ -17,6 +17,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 
 	"storj.io/uplink"
@@ -28,7 +29,7 @@ type StorjDS struct {
 	logger  *log.Logger
 	db      *dbx.DB
 	project *uplink.Project
-	packer  *packer
+	packer  *pack.Chore
 }
 
 type Config struct {
@@ -73,20 +74,13 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 		return nil, fmt.Errorf("failed to open Storj project: %s", err)
 	}
 
-	packer := packer{
-		logger:   logger,
-		db:       db,
-		project:  project,
-		interval: conf.PackInterval,
-	}
-
 	return &StorjDS{
 		Config:  conf,
 		logFile: logFile,
 		logger:  logger,
 		db:      db,
 		project: project,
-		packer:  &packer,
+		packer:  pack.NewChore(logger, db, project, conf.Bucket).WithInterval(conf.PackInterval),
 	}, nil
 }
 
@@ -107,7 +101,7 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 func (storj *StorjDS) Sync(prefix ds.Key) error {
 	storj.logger.Printf("Sync --- prefix: %s\n", prefix)
 
-	storj.packer.ensureRunning(context.Background())
+	storj.packer.Run(context.Background())
 
 	return nil
 }

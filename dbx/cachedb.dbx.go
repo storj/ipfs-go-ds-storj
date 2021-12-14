@@ -1132,6 +1132,40 @@ func (obj *pgxImpl) Get_Block_By_Cid(ctx context.Context,
 
 }
 
+func (obj *pgxImpl) Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
+	limit int, offset int64) (
+	rows []*Block, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("SELECT blocks.cid, blocks.size, blocks.created, blocks.data, blocks.deleted, blocks.pack_object, blocks.pack_offset, blocks.pack_status FROM blocks WHERE blocks.pack_status = 0 ORDER BY blocks.created LIMIT ? OFFSET ?")
+
+	var __values []interface{}
+
+	__values = append(__values, limit, offset)
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	__rows, err := obj.driver.QueryContext(ctx, __stmt, __values...)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	defer __rows.Close()
+
+	for __rows.Next() {
+		block := &Block{}
+		err = __rows.Scan(&block.Cid, &block.Size, &block.Created, &block.Data, &block.Deleted, &block.PackObject, &block.PackOffset, &block.PackStatus)
+		if err != nil {
+			return nil, obj.makeErr(err)
+		}
+		rows = append(rows, block)
+	}
+	if err := __rows.Err(); err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return rows, nil
+
+}
+
 func (obj *pgxImpl) Delete_Block_By_Cid(ctx context.Context,
 	block_cid Block_Cid_Field) (
 	deleted bool, err error) {
@@ -1281,6 +1315,40 @@ func (obj *sqlite3Impl) Get_Block_By_Cid(ctx context.Context,
 		return (*Block)(nil), obj.makeErr(err)
 	}
 	return block, nil
+
+}
+
+func (obj *sqlite3Impl) Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
+	limit int, offset int64) (
+	rows []*Block, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("SELECT blocks.cid, blocks.size, blocks.created, blocks.data, blocks.deleted, blocks.pack_object, blocks.pack_offset, blocks.pack_status FROM blocks WHERE blocks.pack_status = 0 ORDER BY blocks.created LIMIT ? OFFSET ?")
+
+	var __values []interface{}
+
+	__values = append(__values, limit, offset)
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	__rows, err := obj.driver.QueryContext(ctx, __stmt, __values...)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	defer __rows.Close()
+
+	for __rows.Next() {
+		block := &Block{}
+		err = __rows.Scan(&block.Cid, &block.Size, &block.Created, &block.Data, &block.Deleted, &block.PackObject, &block.PackOffset, &block.PackStatus)
+		if err != nil {
+			return nil, obj.makeErr(err)
+		}
+		rows = append(rows, block)
+	}
+	if err := __rows.Err(); err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return rows, nil
 
 }
 
@@ -1456,6 +1524,16 @@ func (rx *Rx) Has_Block_By_Cid(ctx context.Context,
 	return tx.Has_Block_By_Cid(ctx, block_cid)
 }
 
+func (rx *Rx) Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
+	limit int, offset int64) (
+	rows []*Block, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx, limit, offset)
+}
+
 type Methods interface {
 	Create_Block(ctx context.Context,
 		block_cid Block_Cid_Field,
@@ -1478,6 +1556,10 @@ type Methods interface {
 	Has_Block_By_Cid(ctx context.Context,
 		block_cid Block_Cid_Field) (
 		has bool, err error)
+
+	Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
+		limit int, offset int64) (
+		rows []*Block, err error)
 }
 
 type TxMethods interface {

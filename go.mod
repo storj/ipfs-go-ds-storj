@@ -1,10 +1,12 @@
 module github.com/kaloyan-raev/ipfs-go-ds-storj
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/jackc/pgconn v1.6.4
 	github.com/jackc/pgx/v4 v4.8.1
+	github.com/jtolio/zipper v0.0.0-20211210220401-ff9a8555d614
 	github.com/lib/pq v1.8.0 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/zeebo/errs v1.2.2
