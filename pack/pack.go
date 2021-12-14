@@ -15,15 +15,16 @@ import (
 	"github.com/jtolio/zipper"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 
+	"storj.io/common/memory"
 	"storj.io/common/sync2"
 	"storj.io/uplink"
 )
 
 const (
 	DefaultInterval = 1 * time.Minute
-	DefaultMinSize  = 32 * 1024 * 1024 // 32MiB
-	DefaultMaxSize  = 60 * 1024 * 1024 // 60MiB
-	MaxBlockSize    = 1 * 2024 * 1024  // 1MB
+	DefaultMinSize  = 32 * memory.MiB
+	DefaultMaxSize  = 60 * memory.MiB
+	MaxBlockSize    = 1 * memory.MiB
 )
 
 type Status int
@@ -47,7 +48,7 @@ type Chore struct {
 	minSize  int
 	maxSize  int
 	loop     *sync2.Cycle
-	runOnce  *sync.Once
+	runOnce  sync.Once
 }
 
 func NewChore(logger *log.Logger, db *dbx.DB, project *uplink.Project, bucket string) *Chore {
@@ -57,8 +58,8 @@ func NewChore(logger *log.Logger, db *dbx.DB, project *uplink.Project, bucket st
 		project:  project,
 		bucket:   bucket,
 		interval: DefaultInterval,
-		minSize:  DefaultMinSize,
-		maxSize:  DefaultMaxSize,
+		minSize:  DefaultMinSize.Int(),
+		maxSize:  DefaultMaxSize.Int(),
 	}
 }
 
@@ -71,10 +72,10 @@ func (chore *Chore) WithInterval(interval time.Duration) *Chore {
 }
 
 func (chore *Chore) WithPackSize(min, max int) *Chore {
-	if min >= MaxBlockSize {
+	if min >= MaxBlockSize.Int() {
 		chore.minSize = min
 	}
-	if max-chore.minSize >= MaxBlockSize {
+	if max-chore.minSize >= MaxBlockSize.Int() {
 		chore.maxSize = max
 	}
 	return chore
@@ -83,7 +84,10 @@ func (chore *Chore) WithPackSize(min, max int) *Chore {
 func (chore *Chore) Run(ctx context.Context) {
 	chore.runOnce.Do(func() {
 		chore.loop = sync2.NewCycle(chore.interval)
-		go chore.loop.Run(ctx, chore.pack)
+		go func() {
+			err := chore.loop.Run(ctx, chore.pack)
+			chore.logger.Printf("Pack error: %v\n", err)
+		}()
 	})
 }
 
@@ -99,22 +103,22 @@ func (chore *Chore) Close() error {
 	return nil
 }
 
-func (chore *Chore) pack(ctx context.Context) error {
+func (chore *Chore) pack(ctx context.Context) (err error) {
 	chore.logger.Println("Pack")
+	defer func() {
+		if err != nil {
+			chore.logger.Printf("Pack error: %v\n", err)
+		}
+	}()
 
-	cids, err := chore.queryNextPack(ctx)
+	blocks, err := chore.queryNextPack(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(cids) == 0 {
+	if len(blocks) == 0 {
 		// unpacked blocks are not enough for a new pack
 		return nil
-	}
-
-	blocks, err := chore.queryBlocksData(ctx, cids)
-	if err != nil {
-		return err
 	}
 
 	packObjectKey := uuid.NewString()
@@ -123,7 +127,10 @@ func (chore *Chore) pack(ctx context.Context) error {
 		return err
 	}
 
+	var cids []string
 	for cid, data := range blocks {
+		cids = append(cids, cid)
+
 		writer, err := pack.Add(ctx, cid, nil)
 		if err != nil {
 			return err
@@ -143,10 +150,8 @@ func (chore *Chore) pack(ctx context.Context) error {
 	return chore.updatePackedBlocks(ctx, cids, packObjectKey)
 }
 
-func (chore *Chore) queryNextPack(ctx context.Context) ([]string, error) {
-	var cids []string
-
-	rows, err := chore.db.QueryContext(ctx, `
+func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error) {
+	result, err := chore.db.ExecContext(ctx, `
 		WITH next_pack AS (
 			SELECT b.cid, sum(b2.size) AS sums
 			FROM blocks b
@@ -161,43 +166,32 @@ func (chore *Chore) queryNextPack(ctx context.Context) ([]string, error) {
 		WHERE 
 			$2 <= (SELECT max(sums) FROM next_pack) AND
 			cid IN (SELECT cid FROM next_pack)
-		RETURNING cid;
 	`, chore.maxSize, chore.minSize)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var cid string
-		var sumSize int
-		if err := rows.Scan(&cid, &sumSize); err != nil {
-			return nil, err
-		}
-		cids = append(cids, cid)
-	}
-	if err = rows.Err(); err != nil {
+	affected, err := result.RowsAffected()
+	if err != nil {
 		return nil, err
 	}
 
-	return cids, nil
-}
-
-func (chore *Chore) queryBlocksData(ctx context.Context, cids []string) (map[string][]byte, error) {
-	blocks := make(map[string][]byte, len(cids))
+	if affected == 0 {
+		return nil, nil
+	}
 
 	rows, err := chore.db.QueryContext(ctx, `
 		SELECT cid, data
 		FROM blocks
 		WHERE 
 			pack_status = `+packingStatus+`
-			cid IN ($1)
-	`, sqlTextArray(cids))
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	blocks := make(map[string][]byte)
 	for rows.Next() {
 		var cid string
 		var data []byte
@@ -210,15 +204,11 @@ func (chore *Chore) queryBlocksData(ctx context.Context, cids []string) (map[str
 		return nil, err
 	}
 
-	if len(blocks) != len(cids) {
-		return nil, fmt.Errorf("unexpected number of blocks read from db: want %d, got %d", len(cids), len(blocks))
-	}
-
 	return blocks, nil
 }
 
 func (chore *Chore) updatePackedBlocks(ctx context.Context, cids []string, packObjectKey string) error {
-	result, err := chore.db.ExecContext(ctx, `
+	stmt := fmt.Sprintf(`
 		UPDATE blocks
 		SET
 			pack_status = `+packedStatus+`, 
@@ -226,8 +216,10 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, cids []string, packO
 			data = NULL
 		WHERE
 			pack_status = `+packingStatus+` AND
-			cid IN ($2)
-	`, packObjectKey, sqlTextArray(cids))
+			cid IN (%s)
+	`, sqlTextArray(cids))
+
+	result, err := chore.db.ExecContext(ctx, stmt, packObjectKey)
 	if err != nil {
 		return err
 	}
@@ -246,5 +238,8 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, cids []string, packO
 }
 
 func sqlTextArray(elems []string) string {
+	if len(elems) == 0 {
+		return ""
+	}
 	return fmt.Sprintf(`"%s"`, strings.Join(elems, `","`))
 }

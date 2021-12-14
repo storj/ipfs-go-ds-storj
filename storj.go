@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -33,14 +32,17 @@ type StorjDS struct {
 }
 
 type Config struct {
+	DBPath       string
 	AccessGrant  string
 	Bucket       string
 	LogFile      string
 	PackInterval time.Duration
+	MinPackSize  int
+	MaxPackSize  int
 }
 
 func NewStorjDatastore(conf Config) (*StorjDS, error) {
-	logger := log.New(io.Discard, "", 0) // default no-op logger
+	logger := log.New(os.Stdout, "", log.LstdFlags) // default stdout logger
 	var logFile *os.File
 
 	if len(conf.LogFile) > 0 {
@@ -54,7 +56,10 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 
 	logger.Println("NewStorjDatastore")
 
-	db, err := dbx.Open("sqlite3", "cache.db")
+	if len(conf.DBPath) == 0 {
+		conf.DBPath = "cache.db"
+	}
+	db, err := dbx.Open("sqlite3", conf.DBPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open cache database: %s", err)
 	}
@@ -80,8 +85,12 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 		logger:  logger,
 		db:      db,
 		project: project,
-		packer:  pack.NewChore(logger, db, project, conf.Bucket).WithInterval(conf.PackInterval),
+		packer:  pack.NewChore(logger, db, project, conf.Bucket).WithInterval(conf.PackInterval).WithPackSize(conf.MinPackSize, conf.MaxPackSize),
 	}, nil
+}
+
+func (storj *StorjDS) DB() *dbx.DB {
+	return storj.db
 }
 
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
