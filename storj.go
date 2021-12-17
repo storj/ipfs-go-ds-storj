@@ -167,12 +167,15 @@ func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has --- key: %s\n", key)
 
-	found, err := storj.db.Has_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	block, err := storj.db.Get_Block_Deleted_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
 	if err != nil {
+		if isNotFound(err) {
+			return false, nil
+		}
 		return false, err
 	}
 
-	return found, nil
+	return !block.Deleted, nil
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {

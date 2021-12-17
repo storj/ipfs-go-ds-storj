@@ -1033,6 +1033,10 @@ func (h *__sqlbundle_Hole) Render() string {
 // end runtime support for building sql statements
 //
 
+type Deleted_Row struct {
+	Deleted bool
+}
+
 type Size_Deleted_Row struct {
 	Size    int
 	Deleted bool
@@ -1071,11 +1075,11 @@ func (obj *pgxImpl) Create_Block(ctx context.Context,
 
 }
 
-func (obj *pgxImpl) Has_Block_By_Cid(ctx context.Context,
+func (obj *pgxImpl) Get_Block_Deleted_By_Cid(ctx context.Context,
 	block_cid Block_Cid_Field) (
-	has bool, err error) {
+	row *Deleted_Row, err error) {
 
-	var __embed_stmt = __sqlbundle_Literal("SELECT EXISTS( SELECT 1 FROM blocks WHERE blocks.cid = ? )")
+	var __embed_stmt = __sqlbundle_Literal("SELECT blocks.deleted FROM blocks WHERE blocks.cid = ?")
 
 	var __values []interface{}
 	__values = append(__values, block_cid.value())
@@ -1083,11 +1087,12 @@ func (obj *pgxImpl) Has_Block_By_Cid(ctx context.Context,
 	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
 	obj.logStmt(__stmt, __values...)
 
-	err = obj.driver.QueryRowContext(ctx, __stmt, __values...).Scan(&has)
+	row = &Deleted_Row{}
+	err = obj.driver.QueryRowContext(ctx, __stmt, __values...).Scan(&row.Deleted)
 	if err != nil {
-		return false, obj.makeErr(err)
+		return (*Deleted_Row)(nil), obj.makeErr(err)
 	}
-	return has, nil
+	return row, nil
 
 }
 
@@ -1257,11 +1262,11 @@ func (obj *sqlite3Impl) Create_Block(ctx context.Context,
 
 }
 
-func (obj *sqlite3Impl) Has_Block_By_Cid(ctx context.Context,
+func (obj *sqlite3Impl) Get_Block_Deleted_By_Cid(ctx context.Context,
 	block_cid Block_Cid_Field) (
-	has bool, err error) {
+	row *Deleted_Row, err error) {
 
-	var __embed_stmt = __sqlbundle_Literal("SELECT EXISTS( SELECT 1 FROM blocks WHERE blocks.cid = ? )")
+	var __embed_stmt = __sqlbundle_Literal("SELECT blocks.deleted FROM blocks WHERE blocks.cid = ?")
 
 	var __values []interface{}
 	__values = append(__values, block_cid.value())
@@ -1269,11 +1274,12 @@ func (obj *sqlite3Impl) Has_Block_By_Cid(ctx context.Context,
 	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
 	obj.logStmt(__stmt, __values...)
 
-	err = obj.driver.QueryRowContext(ctx, __stmt, __values...).Scan(&has)
+	row = &Deleted_Row{}
+	err = obj.driver.QueryRowContext(ctx, __stmt, __values...).Scan(&row.Deleted)
 	if err != nil {
-		return false, obj.makeErr(err)
+		return (*Deleted_Row)(nil), obj.makeErr(err)
 	}
-	return has, nil
+	return row, nil
 
 }
 
@@ -1505,6 +1511,16 @@ func (rx *Rx) Get_Block_By_Cid(ctx context.Context,
 	return tx.Get_Block_By_Cid(ctx, block_cid)
 }
 
+func (rx *Rx) Get_Block_Deleted_By_Cid(ctx context.Context,
+	block_cid Block_Cid_Field) (
+	row *Deleted_Row, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Get_Block_Deleted_By_Cid(ctx, block_cid)
+}
+
 func (rx *Rx) Get_Block_Size_Block_Deleted_By_Cid(ctx context.Context,
 	block_cid Block_Cid_Field) (
 	row *Size_Deleted_Row, err error) {
@@ -1513,16 +1529,6 @@ func (rx *Rx) Get_Block_Size_Block_Deleted_By_Cid(ctx context.Context,
 		return
 	}
 	return tx.Get_Block_Size_Block_Deleted_By_Cid(ctx, block_cid)
-}
-
-func (rx *Rx) Has_Block_By_Cid(ctx context.Context,
-	block_cid Block_Cid_Field) (
-	has bool, err error) {
-	var tx *Tx
-	if tx, err = rx.getTx(ctx); err != nil {
-		return
-	}
-	return tx.Has_Block_By_Cid(ctx, block_cid)
 }
 
 func (rx *Rx) Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
@@ -1550,13 +1556,13 @@ type Methods interface {
 		block_cid Block_Cid_Field) (
 		block *Block, err error)
 
+	Get_Block_Deleted_By_Cid(ctx context.Context,
+		block_cid Block_Cid_Field) (
+		row *Deleted_Row, err error)
+
 	Get_Block_Size_Block_Deleted_By_Cid(ctx context.Context,
 		block_cid Block_Cid_Field) (
 		row *Size_Deleted_Row, err error)
-
-	Has_Block_By_Cid(ctx context.Context,
-		block_cid Block_Cid_Field) (
-		has bool, err error)
 
 	Limited_Block_By_PackStatus_Equal_Number_OrderBy_Asc_Created(ctx context.Context,
 		limit int, offset int64) (

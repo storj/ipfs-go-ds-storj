@@ -16,8 +16,8 @@ model block (
 create block ( )
 delete block ( where block.cid = ? )
 
-read has (
-    select block
+read one (
+    select block.deleted
     where block.cid = ?
 )
 read one (
