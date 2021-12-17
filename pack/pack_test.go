@@ -5,8 +5,6 @@ package pack_test
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
@@ -41,15 +39,8 @@ func TestPack(t *testing.T) {
 		err = uplnk.CreateBucket(ctx, sat, bucket)
 		require.NoError(t, err)
 
-		dbFile, err := ioutil.TempFile(os.TempDir(), "storjds-db-")
-		require.NoError(t, err)
-		defer func() {
-			err := os.Remove(dbFile.Name())
-			require.NoError(t, err)
-		}()
-
 		storj, err := storjds.NewStorjDatastore(storjds.Config{
-			DBPath:       dbFile.Name(),
+			DBPath:       "file::memory:?cache=shared",
 			Bucket:       bucket,
 			AccessGrant:  access,
 			PackInterval: 100 * time.Millisecond,

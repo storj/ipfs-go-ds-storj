@@ -6,7 +6,6 @@ package storjds
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	dstest "github.com/ipfs/go-datastore/test"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/stretchr/testify/require"
 
 	"storj.io/common/memory"
 	"storj.io/uplink"
@@ -33,15 +31,8 @@ func TestSuiteStorj(t *testing.T) {
 		t.Skipf("skipping test suit; STORJ_ACCESS is not set.")
 	}
 
-	dbFile, err := ioutil.TempFile(os.TempDir(), "storjds-db-")
-	require.NoError(t, err)
-	defer func() {
-		err := os.Remove(dbFile.Name())
-		require.NoError(t, err)
-	}()
-
 	config := Config{
-		DBPath:       dbFile.Name(),
+		DBPath:       "file::memory:?cache=shared",
 		Bucket:       "testbucket",
 		AccessGrant:  access,
 		PackInterval: 100 * time.Millisecond,
