@@ -5,7 +5,7 @@ require (
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/jtolio/zipper v0.0.0-20211216215036-bb5d8c1edfc7
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.2.2
 	storj.io/common v0.0.0-20211111143956-15b749504e31
