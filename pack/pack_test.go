@@ -12,7 +12,6 @@ import (
 	"time"
 
 	ds "github.com/ipfs/go-datastore"
-	"github.com/jtolio/zipper"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
@@ -23,7 +22,6 @@ import (
 	"storj.io/common/testcontext"
 	"storj.io/common/testrand"
 	"storj.io/storj/private/testplanet"
-	"storj.io/uplink"
 )
 
 func TestPack(t *testing.T) {
@@ -112,41 +110,10 @@ func TestPack(t *testing.T) {
 		require.Greater(t, obj.System.ContentLength, 2*memory.MiB.Int64())
 		require.Equal(t, "application/zip", obj.Custom["content-type"])
 
-		pack, err := zipper.OpenPack(ctx, project, bucket, objectKey)
-		require.NoError(t, err)
-
-		for i := 0; i < 8; i++ {
-			block, err := pack.Open(ctx, fmt.Sprintf("block%d", i))
-			require.NoError(t, err)
-			assert.Equal(t, int64(len(blobs[i])), block.Size)
-
-			data, err := ioutil.ReadAll(block)
+		for i, key := range keys {
+			data, err := storj.Get(key)
 			require.NoError(t, err)
 			assert.Equal(t, blobs[i], data)
 		}
-
-		for i := 0; i < 8; i++ {
-			block, err := storj.DB().Get_Block_By_Cid(ctx, dbx.Block_Cid(fmt.Sprintf("block%d", i)))
-			require.NoError(t, err, i)
-			data := readRange(t, ctx, project, bucket, objectKey, block.PackOffset, block.Size)
-			assert.Equal(t, blobs[i], data)
-		}
 	})
-}
-
-func readRange(t *testing.T, ctx *testcontext.Context, project *uplink.Project, bucket, key string, offset, length int) []byte {
-	download, err := project.DownloadObject(ctx, bucket, key, &uplink.DownloadOptions{
-		Offset: int64(offset),
-		Length: int64(length),
-	})
-	require.NoError(t, err)
-	defer func() {
-		err := download.Close()
-		require.NoError(t, err)
-	}()
-
-	data, err := ioutil.ReadAll(download)
-	require.NoError(t, err)
-
-	return data
 }

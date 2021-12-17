@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -115,10 +116,12 @@ func (storj *StorjDS) Sync(prefix ds.Key) error {
 	return nil
 }
 
-func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
+func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 	storj.logger.Printf("Get --- key: %s\n", key)
 
-	block, err := storj.db.Get_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	ctx := context.Background()
+
+	block, err := storj.db.Get_Block_By_Cid(ctx, dbx.Block_Cid(storjKey(key)))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, ds.ErrNotFound
@@ -126,7 +129,39 @@ func (storj *StorjDS) Get(key ds.Key) ([]byte, error) {
 		return nil, err
 	}
 
-	return block.Data, nil
+	switch pack.Status(block.PackStatus) {
+	case pack.Unpacked:
+		return block.Data, nil
+	case pack.Packing:
+		if block.Deleted {
+			return nil, ds.ErrNotFound
+		}
+		return block.Data, nil
+	case pack.Packed:
+		if block.Deleted {
+			return nil, ds.ErrNotFound
+		}
+
+		download, err := storj.project.DownloadObject(ctx, storj.Bucket, block.PackObject, &uplink.DownloadOptions{
+			Offset: int64(block.PackOffset),
+			Length: int64(block.Size),
+		})
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			err = errs.Combine(err, download.Close())
+		}()
+
+		data, err := ioutil.ReadAll(download)
+		if err != nil {
+			return nil, err
+		}
+
+		return data, nil
+	default:
+		return nil, fmt.Errorf("unknown pack status: %d", block.PackStatus)
+	}
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
