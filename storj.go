@@ -43,7 +43,7 @@ type Config struct {
 }
 
 func NewStorjDatastore(conf Config) (*StorjDS, error) {
-	logger := log.New(os.Stdout, "", log.LstdFlags) // default stdout logger
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
 	var logFile *os.File
 
 	if len(conf.LogFile) > 0 {
@@ -52,7 +52,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create log file: %s", err)
 		}
-		logger = log.New(logFile, "", log.LstdFlags)
+		logger = log.New(logFile, "", log.LstdFlags|log.Lmicroseconds)
 	}
 
 	logger.Println("NewStorjDatastore")
