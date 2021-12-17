@@ -4,8 +4,6 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ipfs v0.10.0
-	github.com/jackc/pgconn v1.10.0
-	github.com/jackc/pgx/v4 v4.13.0
 	github.com/jtolio/zipper v0.0.0-20211216215036-bb5d8c1edfc7
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/stretchr/testify v1.7.0

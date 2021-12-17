@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +43,6 @@ func TestPack(t *testing.T) {
 
 		dbFile, err := ioutil.TempFile(os.TempDir(), "storjds-db-")
 		require.NoError(t, err)
-
 		defer func() {
 			err := os.Remove(dbFile.Name())
 			require.NoError(t, err)
@@ -89,10 +86,10 @@ func TestPack(t *testing.T) {
 		var objectKey string
 
 		for i, key := range keys {
-			block, err := storj.DB().Get_Block_By_Cid(ctx, dbx.Block_Cid(strings.TrimPrefix(key.String(), "/")))
+			block, err := storj.GetBlock(ctx, key)
 			require.NoError(t, err, i)
 			if i < 8 {
-				assert.Equal(t, pack.Packed, pack.Status(block.PackStatus), block.Created)
+				assert.Equal(t, pack.Packed, pack.Status(block.PackStatus), i)
 				assert.Nil(t, block.Data, i)
 				assert.NotEmpty(t, block.PackObject, i)
 				assert.NotZero(t, block.PackOffset, i)

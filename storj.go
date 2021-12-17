@@ -16,7 +16,6 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 
@@ -27,7 +26,7 @@ type StorjDS struct {
 	Config
 	logFile *os.File
 	logger  *log.Logger
-	db      *dbx.DB
+	db      *sql.DB
 	project *uplink.Project
 	packer  *pack.Chore
 }
@@ -60,12 +59,24 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	if len(conf.DBPath) == 0 {
 		conf.DBPath = "cache.db"
 	}
-	db, err := dbx.Open("sqlite3", conf.DBPath)
+	db, err := sql.Open("sqlite3", conf.DBPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open cache database: %s", err)
 	}
 
-	_, err = db.ExecContext(context.Background(), db.Schema())
+	_, err = db.ExecContext(context.Background(), `
+		CREATE TABLE blocks (
+			cid TEXT NOT NULL,
+			size INTEGER NOT NULL,
+			created TIMESTAMP NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
+			data BLOB,
+			deleted INTEGER NOT NULL DEFAULT false,
+			pack_object TEXT NOT NULL DEFAULT "",
+			pack_offset INTEGER NOT NULL DEFAULT 0,
+			pack_status INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY ( cid )
+		)
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache database schema: %s", err)
 	}
@@ -90,22 +101,34 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	}, nil
 }
 
-func (storj *StorjDS) DB() *dbx.DB {
+func (storj *StorjDS) DB() *sql.DB {
 	return storj.db
 }
 
 func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
 
-	_, err := storj.db.Create_Block(context.Background(),
-		dbx.Block_Cid(storjKey(key)),
-		dbx.Block_Size(len(value)),
-		dbx.Block_Create_Fields{
-			Data: dbx.Block_Data(value),
-		},
-	)
+	result, err := storj.db.ExecContext(context.Background(), `
+		INSERT INTO blocks (
+			cid, size, data
+		) VALUES (
+			$1, $2, $3
+		)
+	`, storjKey(key), len(value), value)
+	if err != nil {
+		return err
+	}
 
-	return err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affected != 1 {
+		return fmt.Errorf("expected 1 row inserted in db, but did %d", affected)
+	}
+
+	return nil
 }
 
 func (storj *StorjDS) Sync(prefix ds.Key) error {
@@ -121,11 +144,8 @@ func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 
 	ctx := context.Background()
 
-	block, err := storj.db.Get_Block_By_Cid(ctx, dbx.Block_Cid(storjKey(key)))
+	block, err := storj.GetBlock(ctx, key)
 	if err != nil {
-		if isNotFound(err) {
-			return nil, ds.ErrNotFound
-		}
 		return nil, err
 	}
 
@@ -167,7 +187,14 @@ func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has --- key: %s\n", key)
 
-	block, err := storj.db.Get_Block_Deleted_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	var deleted bool
+	err = storj.db.QueryRowContext(context.Background(), `
+		SELECT deleted
+		FROM blocks
+		WHERE cid = $1
+	`, storjKey(key)).Scan(
+		&deleted,
+	)
 	if err != nil {
 		if isNotFound(err) {
 			return false, nil
@@ -175,14 +202,21 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 		return false, err
 	}
 
-	return !block.Deleted, nil
+	return !deleted, nil
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize --- key: %s\n", key)
 
-	block, err := storj.db.Get_Block_Size_Block_Deleted_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	var deleted bool
+	err = storj.db.QueryRowContext(context.Background(), `
+		SELECT size, deleted
+		FROM blocks
+		WHERE cid = $1
+	`, storjKey(key)).Scan(
+		&size, &deleted,
+	)
 	if err != nil {
 		if isNotFound(err) {
 			return -1, ds.ErrNotFound
@@ -190,20 +224,20 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 		return -1, err
 	}
 
-	if block.Deleted {
+	if deleted {
 		return -1, ds.ErrNotFound
 	}
 
-	return block.Size, nil
+	return size, nil
 }
 
 func (storj *StorjDS) Delete(key ds.Key) error {
 	storj.logger.Printf("Delete --- key: %s\n", key)
 
-	_, err := storj.db.Delete_Block_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
-	if err != nil {
-		return err
-	}
+	_, err := storj.db.ExecContext(context.Background(), `
+		DELETE FROM blocks
+		WHERE cid = $1
+	`, storjKey(key))
 
 	return err
 }
@@ -295,6 +329,43 @@ func (storj *StorjDS) Close() error {
 	}
 
 	return err
+}
+
+type Block struct {
+	CID        string
+	Size       int
+	Data       []byte
+	Deleted    bool
+	PackStatus int
+	PackObject string
+	PackOffset int
+}
+
+func (storj *StorjDS) GetBlock(ctx context.Context, key ds.Key) (*Block, error) {
+	cid := storjKey(key)
+
+	block := Block{
+		CID: cid,
+	}
+
+	err := storj.db.QueryRowContext(ctx, `
+		SELECT
+			size, data, deleted,
+			pack_status, pack_object, pack_offset
+		FROM blocks
+		WHERE cid = $1
+	`, cid).Scan(
+		&block.Size, &block.Data, &block.Deleted,
+		&block.PackStatus, &block.PackObject, &block.PackOffset,
+	)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, ds.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &block, nil
 }
 
 func storjKey(ipfsKey ds.Key) string {

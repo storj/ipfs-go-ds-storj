@@ -5,6 +5,7 @@ package pack
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jtolio/zipper"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
 	"github.com/zeebo/errs"
 
 	"storj.io/common/memory"
@@ -41,7 +41,7 @@ const (
 
 type Chore struct {
 	logger   *log.Logger
-	db       *dbx.DB
+	db       *sql.DB
 	project  *uplink.Project
 	bucket   string
 	interval time.Duration
@@ -51,7 +51,7 @@ type Chore struct {
 	runOnce  sync.Once
 }
 
-func NewChore(logger *log.Logger, db *dbx.DB, project *uplink.Project, bucket string) *Chore {
+func NewChore(logger *log.Logger, db *sql.DB, project *uplink.Project, bucket string) *Chore {
 	return &Chore{
 		logger:   logger,
 		db:       db,
@@ -183,7 +183,7 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 	rows, err := chore.db.QueryContext(ctx, `
 		SELECT cid, data
 		FROM blocks
-		WHERE 
+		WHERE
 			pack_status = `+packingStatus+`
 	`)
 	if err != nil {
