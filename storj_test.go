@@ -12,6 +12,7 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	dstest "github.com/ipfs/go-datastore/test"
+	"storj.io/common/memory"
 	"storj.io/uplink"
 )
 
@@ -32,6 +33,8 @@ func TestSuiteStorj(t *testing.T) {
 		Bucket:       "testbucket",
 		AccessGrant:  access,
 		PackInterval: 100 * time.Millisecond,
+		MinPackSize:  1 * memory.MiB.Int(),
+		MaxPackSize:  2 * memory.MiB.Int(),
 	}
 
 	storj, err := NewStorjDatastore(config)

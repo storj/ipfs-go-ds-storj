@@ -179,12 +179,16 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize --- key: %s\n", key)
 
-	block, err := storj.db.Get_Block_Size_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
+	block, err := storj.db.Get_Block_Size_Block_Deleted_By_Cid(context.Background(), dbx.Block_Cid(storjKey(key)))
 	if err != nil {
 		if isNotFound(err) {
 			return -1, ds.ErrNotFound
 		}
 		return -1, err
+	}
+
+	if block.Deleted {
+		return -1, ds.ErrNotFound
 	}
 
 	return block.Size, nil

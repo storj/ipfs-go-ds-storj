@@ -21,7 +21,7 @@ read has (
     where block.cid = ?
 )
 read one (
-    select block.size
+    select block.size block.deleted
     where block.cid = ?
 )
 read one (
