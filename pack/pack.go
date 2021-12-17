@@ -176,6 +176,8 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 		return nil, err
 	}
 
+	chore.logger.Printf("queryNextPack: affected %d rows", affected)
+
 	if affected == 0 {
 		return nil, nil
 	}
@@ -217,12 +219,11 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string
 			err = errs.Combine(err, tx.Rollback())
 			return
 		}
-
 		err = tx.Commit()
 	}()
 
 	for cid, off := range cidOffs {
-		result, err := chore.db.ExecContext(ctx, `
+		result, err := tx.ExecContext(ctx, `
 			UPDATE blocks
 			SET
 				pack_status = `+packedStatus+`, 

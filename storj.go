@@ -64,6 +64,9 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 		return nil, fmt.Errorf("failed to open cache database: %s", err)
 	}
 
+	// Avoid "database is locked" errors when sqlite db is accessed concurrently.
+	db.SetMaxOpenConns(1)
+
 	_, err = db.ExecContext(context.Background(), `
 		CREATE TABLE blocks (
 			cid TEXT NOT NULL,
