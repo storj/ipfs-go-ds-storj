@@ -707,8 +707,6 @@ github.com/jtolds/monkit-hw/v2 v2.0.0-20191108235325-141a0da276b3 h1:dITCBge70U9
 github.com/jtolds/monkit-hw/v2 v2.0.0-20191108235325-141a0da276b3/go.mod h1:eo5po8nCwRcvZIIR8eGi7PKthzXuunpXzUmXzxCBfBc=
 github.com/jtolds/tracetagger/v2 v2.0.0-rc5 h1:SriMFVtftPsQmG+0xaABotz9HnoKoo1QM/oggqfpGh8=
 github.com/jtolds/tracetagger/v2 v2.0.0-rc5/go.mod h1:61Fh+XhbBONy+RsqkA+xTtmaFbEVL040m9FAF/hTrjQ=
-github.com/jtolio/zipper v0.0.0-20211216215036-bb5d8c1edfc7 h1:H/Mbnksj8Qr6CJ/G3i8/vNxGco+HSIWu3BjuBoYUnnI=
-github.com/jtolio/zipper v0.0.0-20211216215036-bb5d8c1edfc7/go.mod h1:0N3yBQgO8YxZvCwde2C+QQC+4o9ENJ8CqhLR2aTz1cQ=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/kami-zh/go-capturer v0.0.0-20171211120116-e492ea43421d/go.mod h1:P2viExyCEfeWGU259JnaQ34Inuec4R38JCyBx2edgD0=
@@ -2117,3 +2115,5 @@ storj.io/storj v1.45.3/go.mod h1:moZd0oySUNS2txK+na4wu0IwaYxhXZtv2dJoXyNJ/1g=
 storj.io/uplink v1.4.6/go.mod h1:CroFLtFtcKj9B0AigacRHuxjNd+jOm9DG45257fTJo0=
 storj.io/uplink v1.7.1-0.20211031201307-b30e004c1ccb h1:+WaWPmWvm12StirZ/b2xgbL9lnB7UmRhvC8fckNN1ZI=
 storj.io/uplink v1.7.1-0.20211031201307-b30e004c1ccb/go.mod h1:XvtDUEQplm3nG76Qo+uR59J7Rrwm9Q40XOwGpPSpF2g=
+storj.io/zipper v0.0.0-20211217073604-d5ead2ba573f h1:CRLfA9tYdYoT1ub1Cs+gxiA9+RgDd/kHwFhlNE68EzA=
+storj.io/zipper v0.0.0-20211217073604-d5ead2ba573f/go.mod h1:fn8M/OGKgZebHwvyPvRDJjoOkv4xhtTAX7XMgF8uJ6M=

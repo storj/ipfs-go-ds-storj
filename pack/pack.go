@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jtolio/zipper"
 	"github.com/zeebo/errs"
 
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
 	"storj.io/uplink"
+	"storj.io/zipper"
 )
 
 const (
