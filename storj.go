@@ -236,10 +236,20 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 func (storj *StorjDS) Delete(key ds.Key) error {
 	storj.logger.Printf("Delete --- key: %s\n", key)
 
+	cid := storjKey(key)
+
 	_, err := storj.db.ExecContext(context.Background(), `
 		DELETE FROM blocks
-		WHERE cid = $1
-	`, storjKey(key))
+		WHERE
+			cid = $1 AND
+			pack_status = 0;
+
+		UPDATE blocks
+		SET deleted = true
+		WHERE
+			cid = $2 AND
+			pack_status > 0;
+	`, cid, cid)
 
 	return err
 }
