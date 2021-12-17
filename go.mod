@@ -6,7 +6,7 @@ require (
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/jackc/pgconn v1.10.0
 	github.com/jackc/pgx/v4 v4.13.0
-	github.com/jtolio/zipper v0.0.0-20211210220401-ff9a8555d614
+	github.com/jtolio/zipper v0.0.0-20211216215036-bb5d8c1edfc7
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.2.2

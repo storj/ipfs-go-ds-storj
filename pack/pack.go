@@ -7,13 +7,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jtolio/zipper"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/dbx"
+	"github.com/zeebo/errs"
 
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
@@ -127,14 +127,14 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 		return err
 	}
 
-	var cids []string
+	cidOffs := make(map[string]int, len(blocks))
 	for cid, data := range blocks {
-		cids = append(cids, cid)
-
-		writer, err := pack.Add(ctx, cid, nil)
+		writer, err := pack.Add(ctx, cid, &zipper.FileHeader{Uncompressed: true})
 		if err != nil {
 			return err
 		}
+
+		cidOffs[cid] = int(writer.ContentOffset)
 
 		_, err = writer.Write(data)
 		if err != nil {
@@ -147,7 +147,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 		return err
 	}
 
-	return chore.updatePackedBlocks(ctx, cids, packObjectKey)
+	return chore.updatePackedBlocks(ctx, packObjectKey, cidOffs)
 }
 
 func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error) {
@@ -207,39 +207,47 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 	return blocks, nil
 }
 
-func (chore *Chore) updatePackedBlocks(ctx context.Context, cids []string, packObjectKey string) error {
-	stmt := fmt.Sprintf(`
-		UPDATE blocks
-		SET
-			pack_status = `+packedStatus+`, 
-			pack_object = $1,
-			data = NULL
-		WHERE
-			pack_status = `+packingStatus+` AND
-			cid IN (%s)
-	`, sqlTextArray(cids))
-
-	result, err := chore.db.ExecContext(ctx, stmt, packObjectKey)
+func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
+	tx, err := chore.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			err = errs.Combine(err, tx.Rollback())
+			return
+		}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
+		err = tx.Commit()
+	}()
 
-	if affected != int64(len(cids)) {
-		// TODO: revert the update, perhaps use a transaction and roll it back
-		return fmt.Errorf("unexpected number of blocks updated db: want %d, got %d", len(cids), affected)
+	for cid, off := range cidOffs {
+		result, err := chore.db.ExecContext(ctx, `
+			UPDATE blocks
+			SET
+				pack_status = `+packedStatus+`, 
+				pack_object = $1,
+				pack_offset = $2,
+				data = NULL
+			WHERE
+				cid = $3 AND
+				pack_status = `+packingStatus+`
+		`, packObjectKey, off, cid)
+		if err != nil {
+			return err
+		}
+
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+
+		if affected != 1 {
+			return fmt.Errorf("unexpected number of blocks updated db: want 1, got %d", affected)
+		}
+
+		chore.logger.Printf("Updated block %s with as packed at offset %d", cid, off)
 	}
 
 	return nil
-}
-
-func sqlTextArray(elems []string) string {
-	if len(elems) == 0 {
-		return ""
-	}
-	return fmt.Sprintf(`"%s"`, strings.Join(elems, `","`))
 }
