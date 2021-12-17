@@ -112,11 +112,10 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
 
 	result, err := storj.db.ExecContext(context.Background(), `
-		INSERT INTO blocks (
-			cid, size, data
-		) VALUES (
-			$1, $2, $3
-		)
+		INSERT INTO blocks (cid, size, data)
+		VALUES ($1, $2, $3)
+		ON CONFLICT(cid)
+		DO UPDATE SET deleted = false
 	`, storjKey(key), len(value), value)
 	if err != nil {
 		return err
