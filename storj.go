@@ -152,39 +152,38 @@ func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 		return nil, err
 	}
 
+	if block.Deleted {
+		return nil, ds.ErrNotFound
+	}
+
 	switch pack.Status(block.PackStatus) {
-	case pack.Unpacked:
-		return block.Data, nil
-	case pack.Packing:
-		if block.Deleted {
-			return nil, ds.ErrNotFound
-		}
+	case pack.Unpacked, pack.Packing:
 		return block.Data, nil
 	case pack.Packed:
-		if block.Deleted {
-			return nil, ds.ErrNotFound
-		}
-
-		download, err := storj.project.DownloadObject(ctx, storj.Bucket, block.PackObject, &uplink.DownloadOptions{
-			Offset: int64(block.PackOffset),
-			Length: int64(block.Size),
-		})
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			err = errs.Combine(err, download.Close())
-		}()
-
-		data, err := ioutil.ReadAll(download)
-		if err != nil {
-			return nil, err
-		}
-
-		return data, nil
+		return storj.readDataFromPack(ctx, block.PackObject, block.PackOffset, block.Size)
 	default:
 		return nil, fmt.Errorf("unknown pack status: %d", block.PackStatus)
 	}
+}
+
+func (storj *StorjDS) readDataFromPack(ctx context.Context, packObject string, packOffset, size int) ([]byte, error) {
+	download, err := storj.project.DownloadObject(ctx, storj.Bucket, packObject, &uplink.DownloadOptions{
+		Offset: int64(packOffset),
+		Length: int64(size),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errs.Combine(err, download.Close())
+	}()
+
+	data, err := ioutil.ReadAll(download)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
@@ -257,9 +256,11 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 	q.Prefix = strings.TrimPrefix(q.Prefix, "/")
 
 	// TODO: optimize with prepared statements
-	query := "SELECT cid, size, data FROM blocks"
+	query := "SELECT cid, size, data, pack_status, pack_object, pack_offset FROM blocks"
 	if len(q.Prefix) > 0 {
-		query += fmt.Sprintf(" WHERE key LIKE '%s%%' ORDER BY key", q.Prefix)
+		query += fmt.Sprintf(" WHERE key LIKE '%s%%' AND deleted = false ORDER BY key", q.Prefix)
+	} else {
+		query += " WHERE deleted = false"
 	}
 	if q.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", q.Limit)
@@ -283,12 +284,15 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 			}
 
 			var (
-				key  string
-				size int
-				data []byte
+				key        string
+				size       int
+				data       []byte
+				packStatus int
+				packObject string
+				packOffset int
 			)
 
-			err := rows.Scan(&key, &size, &data)
+			err := rows.Scan(&key, &size, &data, &packStatus, &packObject, &packOffset)
 			if err != nil {
 				return dsq.Result{Error: err}, false
 			}
@@ -296,8 +300,18 @@ func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
 			entry := dsq.Entry{Key: "/" + key}
 
 			if !q.KeysOnly {
-				// TODO: optimize to not read this column from DB
-				entry.Value = data
+				switch pack.Status(packStatus) {
+				case pack.Unpacked, pack.Packing:
+					// TODO: optimize to not read this column from DB if keys only
+					entry.Value = data
+				case pack.Packed:
+					entry.Value, err = storj.readDataFromPack(context.Background(), packObject, packOffset, size)
+					if err != nil {
+						return dsq.Result{Error: err}, false
+					}
+				default:
+					return dsq.Result{Error: fmt.Errorf("unknown pack status: %d", packStatus)}, false
+				}
 			}
 			if q.ReturnsSizes {
 				// TODO: optimize to not read this column from DB
