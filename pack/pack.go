@@ -113,43 +113,48 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 		}
 	}()
 
-	blocks, err := chore.queryNextPack(ctx)
-	if err != nil {
-		return err
-	}
-
-	if len(blocks) == 0 {
-		// unpacked blocks are not enough for a new pack
-		return nil
-	}
-
-	packObjectKey := uuid.NewString()
-	pack, err := zipper.CreatePack(ctx, chore.project, chore.bucket, packObjectKey, nil)
-	if err != nil {
-		return err
-	}
-
-	cidOffs := make(map[string]int, len(blocks))
-	for cid, data := range blocks {
-		writer, err := pack.Add(ctx, cid, &zipper.FileHeader{Uncompressed: true})
+	for {
+		blocks, err := chore.queryNextPack(ctx)
 		if err != nil {
 			return err
 		}
 
-		cidOffs[cid] = int(writer.ContentOffset)
+		if len(blocks) == 0 {
+			// unpacked blocks are not enough for a new pack
+			return nil
+		}
 
-		_, err = writer.Write(data)
+		packObjectKey := uuid.NewString()
+		pack, err := zipper.CreatePack(ctx, chore.project, chore.bucket, packObjectKey, nil)
+		if err != nil {
+			return err
+		}
+
+		cidOffs := make(map[string]int, len(blocks))
+		for cid, data := range blocks {
+			writer, err := pack.Add(ctx, cid, &zipper.FileHeader{Uncompressed: true})
+			if err != nil {
+				return err
+			}
+
+			cidOffs[cid] = int(writer.ContentOffset)
+
+			_, err = writer.Write(data)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = pack.Commit(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = chore.updatePackedBlocks(ctx, packObjectKey, cidOffs)
 		if err != nil {
 			return err
 		}
 	}
-
-	err = pack.Commit(ctx)
-	if err != nil {
-		return err
-	}
-
-	return chore.updatePackedBlocks(ctx, packObjectKey, cidOffs)
 }
 
 func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error) {
