@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
-	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
@@ -49,12 +48,11 @@ func TestPack(t *testing.T) {
 		}()
 
 		storj, err := storjds.NewStorjDatastore(storjds.Config{
-			DBPath:       dbFile.Name(),
-			Bucket:       bucket,
-			AccessGrant:  access,
-			PackInterval: 100 * time.Millisecond,
-			MinPackSize:  1 * memory.MiB.Int(),
-			MaxPackSize:  2 * memory.MiB.Int(),
+			DBPath:      dbFile.Name(),
+			Bucket:      bucket,
+			AccessGrant: access,
+			MinPackSize: 1 * memory.MiB.Int(),
+			MaxPackSize: 2 * memory.MiB.Int(),
 		})
 		require.NoError(t, err)
 
@@ -81,7 +79,7 @@ func TestPack(t *testing.T) {
 		err = storj.Sync(ds.Key{})
 		require.NoError(t, err)
 
-		time.Sleep(500 * time.Millisecond)
+		storj.TriggerWaitPacker()
 
 		var objectKey string
 

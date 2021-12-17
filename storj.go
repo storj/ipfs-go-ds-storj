@@ -341,6 +341,10 @@ func (storj *StorjDS) Batch() (ds.Batch, error) {
 	}, nil
 }
 
+func (storj *StorjDS) TriggerWaitPacker() {
+	storj.packer.TriggerWait()
+}
+
 func (storj *StorjDS) Close() error {
 	storj.logger.Println("Close")
 

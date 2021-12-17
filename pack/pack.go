@@ -96,11 +96,13 @@ func (chore *Chore) Close() error {
 		return nil
 	}
 
-	// final packing attempt before closing
-	chore.loop.TriggerWait()
 	chore.loop.Close()
 
 	return nil
+}
+
+func (chore *Chore) TriggerWait() {
+	chore.loop.TriggerWait()
 }
 
 func (chore *Chore) pack(ctx context.Context) (err error) {
