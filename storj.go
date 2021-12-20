@@ -69,7 +69,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	db.SetMaxOpenConns(1)
 
 	_, err = db.ExecContext(context.Background(), `
-		CREATE TABLE blocks (
+		CREATE TABLE IF NOT EXISTS blocks (
 			cid TEXT NOT NULL,
 			size INTEGER NOT NULL,
 			created TIMESTAMP NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
