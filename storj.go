@@ -109,8 +109,15 @@ func (storj *StorjDS) DB() *sql.DB {
 	return storj.db
 }
 
-func (storj *StorjDS) Put(key ds.Key, value []byte) error {
-	storj.logger.Printf("Put --- key: %s --- bytes: %d\n", key, len(value))
+func (storj *StorjDS) Put(key ds.Key, value []byte) (err error) {
+	storj.logger.Printf("Sync requested for key %s and data of %d bytes\n", key, len(value))
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("Put for key %s returned\n", key)
+		} else {
+			storj.logger.Printf("Put for key %s returned error: %v\n", key, err)
+		}
+	}()
 
 	result, err := storj.db.ExecContext(context.Background(), `
 		INSERT INTO blocks (cid, size, data)
@@ -134,8 +141,15 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) error {
 	return nil
 }
 
-func (storj *StorjDS) Sync(prefix ds.Key) error {
-	storj.logger.Printf("Sync --- prefix: %s\n", prefix)
+func (storj *StorjDS) Sync(prefix ds.Key) (err error) {
+	storj.logger.Printf("Sync requested for prefix '%s'\n", prefix)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("Sync for prefix '%s' returned\n", prefix)
+		} else {
+			storj.logger.Printf("Sync for prefix '%s' returned error: %v\n", prefix, err)
+		}
+	}()
 
 	storj.packer.Run(context.Background())
 
@@ -143,7 +157,14 @@ func (storj *StorjDS) Sync(prefix ds.Key) error {
 }
 
 func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
-	storj.logger.Printf("Get --- key: %s\n", key)
+	storj.logger.Printf("Get requested for key %s\n", key)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("Get for key %s returned %d bytes of data\n", key, len(data))
+		} else {
+			storj.logger.Printf("Get for key %s returned error: %v\n", key, err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -187,7 +208,14 @@ func (storj *StorjDS) readDataFromPack(ctx context.Context, packObject string, p
 }
 
 func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
-	storj.logger.Printf("Has --- key: %s\n", key)
+	storj.logger.Printf("Has requested for key %s\n", key)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("Has for key %s returned: %t\n", key, exists)
+		} else {
+			storj.logger.Printf("Has for key %s returned error: %v\n", key, err)
+		}
+	}()
 
 	var deleted bool
 	err = storj.db.QueryRowContext(context.Background(), `
@@ -208,8 +236,14 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
-	// Commented because this method is invoked very often and it is noisy.
-	// storj.logger.Printf("GetSize --- key: %s\n", key)
+	storj.logger.Printf("GetSize requested for key %s\n", key)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
+		} else {
+			storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
+		}
+	}()
 
 	var deleted bool
 	err = storj.db.QueryRowContext(context.Background(), `
@@ -233,12 +267,20 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	return size, nil
 }
 
-func (storj *StorjDS) Delete(key ds.Key) error {
+func (storj *StorjDS) Delete(key ds.Key) (err error) {
+	storj.logger.Printf("Delete requested for key %s\n", key)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("Delete for key %s returned\n", key)
+		} else {
+			storj.logger.Printf("Delete for key %s returned error: %v\n", key, err)
+		}
+	}()
 	storj.logger.Printf("Delete --- key: %s\n", key)
 
 	cid := storjKey(key)
 
-	_, err := storj.db.ExecContext(context.Background(), `
+	_, err = storj.db.ExecContext(context.Background(), `
 		DELETE FROM blocks
 		WHERE
 			cid = $1 AND
@@ -254,8 +296,15 @@ func (storj *StorjDS) Delete(key ds.Key) error {
 	return err
 }
 
-func (storj *StorjDS) Query(q dsq.Query) (dsq.Results, error) {
-	storj.logger.Printf("Query --- %s\n", q)
+func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
+	storj.logger.Printf("Query requested: %s\n", q)
+	defer func() {
+		if err == nil {
+			storj.logger.Println("Query returned")
+		} else {
+			storj.logger.Printf("Query returned error: %v\n", err)
+		}
+	}()
 
 	// TODO: implement orders and filters
 	if q.Orders != nil || q.Filters != nil {
