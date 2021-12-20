@@ -124,11 +124,15 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 			return nil
 		}
 
+		chore.logger.Printf("Pack: %d blocks ready to pack", len(blocks))
+
 		packObjectKey := uuid.NewString()
 		pack, err := zipper.CreatePack(ctx, chore.project, chore.bucket, packObjectKey, nil)
 		if err != nil {
 			return err
 		}
+
+		chore.logger.Printf("Pack: created pending pack %s", packObjectKey)
 
 		cidOffs := make(map[string]int, len(blocks))
 		for cid, data := range blocks {
@@ -143,12 +147,16 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
+
+			chore.logger.Printf("Pack: added block %s of size %d to pack %s at offset %d", cid, len(data), packObjectKey, cidOffs[cid])
 		}
 
 		err = pack.Commit(ctx)
 		if err != nil {
 			return err
 		}
+
+		chore.logger.Printf("Pack: committed pack %s", packObjectKey)
 
 		err = chore.updatePackedBlocks(ctx, packObjectKey, cidOffs)
 		if err != nil {
@@ -254,7 +262,7 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string
 			return fmt.Errorf("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
 
-		chore.logger.Printf("Updated block %s with as packed at offset %d", cid, off)
+		chore.logger.Printf("Pack: updated block %s status as packed at offset %d", cid, off)
 	}
 
 	return nil
