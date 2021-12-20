@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	dstest "github.com/ipfs/go-datastore/test"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 
 	"storj.io/common/testcontext"
