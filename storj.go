@@ -17,6 +17,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/zeebo/errs"
 
 	"storj.io/uplink"
