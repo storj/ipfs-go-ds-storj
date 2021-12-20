@@ -236,14 +236,15 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 }
 
 func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
-	storj.logger.Printf("GetSize requested for key %s\n", key)
-	defer func() {
-		if err == nil {
-			storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
-		} else {
-			storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
-		}
-	}()
+	// Commented because this method is invoked very often and it is noisy.
+	// storj.logger.Printf("GetSize requested for key %s\n", key)
+	// defer func() {
+	// 	if err == nil {
+	// 		storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
+	// 	} else {
+	// 		storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
+	// 	}
+	// }()
 
 	var deleted bool
 	err = storj.db.QueryRowContext(context.Background(), `
@@ -335,10 +336,12 @@ func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
 
 	return dsq.ResultsFromIterator(q, dsq.Iterator{
 		Close: func() error {
+			storj.logger.Println("Query closed")
 			return nil
 		},
 		Next: func() (dsq.Result, bool) {
 			if !rows.Next() {
+				storj.logger.Println("Query completed")
 				return dsq.Result{}, false
 			}
 
