@@ -4,84 +4,77 @@
 package storjds
 
 import (
-	"context"
-	"errors"
+	"io/ioutil"
 	"os"
 	"testing"
 
 	dstest "github.com/ipfs/go-datastore/test"
-	"storj.io/uplink"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/require"
+
+	"storj.io/common/testcontext"
+	"storj.io/storj/private/testplanet"
 )
 
-func TestSuiteStorj(t *testing.T) {
-	// Only run tests when STORJ_ACCESS is set. STORJ_ACCESS must be set to a
-	// valid access grant. The easiest way to set up a local Storj test network
-	// is to use https://github.com/storj/up. After setting it up, executing
-	// `storj-up credentials -e` will print a valid access grant to the local
-	// test network. Executing `eval $(storj-up credentials -e) will set it
-	// also to the STORJ_ACCESS environment variable. Finally, execute
-	// `go test -v ./...` to run the tests.
-	access, set := os.LookupEnv("STORJ_ACCESS")
-	if !set {
-		t.Skipf("skipping test suit; STORJ_ACCESS is not set.")
-	}
-
-	config := Config{
-		Bucket:      "testbucket",
-		AccessGrant: access,
-	}
-
-	storj, err := NewStorjDatastore(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		err := storj.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	storj.runCleanTest(t, "basic operations", func(t *testing.T) {
+func TestIPFSSuite(t *testing.T) {
+	runTest(t, "basic operations", func(t *testing.T, storj *StorjDS) {
 		dstest.SubtestBasicPutGet(t, storj)
 	})
-	storj.runCleanTest(t, "not found operations", func(t *testing.T) {
+	runTest(t, "not found operations", func(t *testing.T, storj *StorjDS) {
 		dstest.SubtestNotFounds(t, storj)
 	})
-	storj.runCleanTest(t, "many puts and gets, query", func(t *testing.T) {
+	runTest(t, "many puts and gets, query", func(t *testing.T, storj *StorjDS) {
 		dstest.SubtestManyKeysAndQuery(t, storj)
 	})
-	storj.runCleanTest(t, "return sizes", func(t *testing.T) {
+	runTest(t, "return sizes", func(t *testing.T, storj *StorjDS) {
 		dstest.SubtestReturnSizes(t, storj)
 	})
-	storj.runCleanTest(t, "batch", func(t *testing.T) {
+	runTest(t, "batch", func(t *testing.T, storj *StorjDS) {
 		dstest.RunBatchTest(t, storj)
 	})
-	storj.runCleanTest(t, "batch delete", func(t *testing.T) {
+	runTest(t, "batch delete", func(t *testing.T, storj *StorjDS) {
 		dstest.RunBatchDeleteTest(t, storj)
 	})
-	storj.runCleanTest(t, "batch put and delete", func(t *testing.T) {
+	runTest(t, "batch put and delete", func(t *testing.T, storj *StorjDS) {
 		dstest.RunBatchPutAndDeleteTest(t, storj)
 	})
 }
 
-func (storj *StorjDS) runCleanTest(t *testing.T, name string, f func(t *testing.T)) {
-	_, err := storj.project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
-	if err != nil && !errors.Is(err, uplink.ErrBucketNotFound) {
-		t.Fatal(err)
-	}
+func runTest(t *testing.T, name string, f func(t *testing.T, storj *StorjDS)) {
+	testplanet.Run(t, testplanet.Config{
+		SatelliteCount:   1,
+		StorageNodeCount: 0,
+		UplinkCount:      1,
+	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+		sat := planet.Satellites[0]
+		uplnk := planet.Uplinks[0]
+		bucket := "testbucket"
 
-	_, err = storj.project.CreateBucket(context.Background(), storj.Bucket)
-	if err != nil {
-		t.Fatal(err)
-	}
+		access, err := uplnk.Access[sat.ID()].Serialize()
+		require.NoError(t, err)
 
-	defer func() {
-		_, err := storj.project.DeleteBucketWithObjects(context.Background(), storj.Bucket)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
+		err = uplnk.CreateBucket(ctx, sat, bucket)
+		require.NoError(t, err)
 
-	t.Run(name, f)
+		dbFile, err := ioutil.TempFile(os.TempDir(), "storjds-db-")
+		require.NoError(t, err)
+		defer func() {
+			err := os.Remove(dbFile.Name())
+			require.NoError(t, err)
+		}()
+
+		storj, err := NewStorjDatastore(Config{
+			DBPath:      dbFile.Name(),
+			Bucket:      bucket,
+			AccessGrant: access,
+		})
+		require.NoError(t, err)
+
+		defer func() {
+			err := storj.Close()
+			require.NoError(t, err)
+		}()
+
+		f(t, storj)
+	})
 }
