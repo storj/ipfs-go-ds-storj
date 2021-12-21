@@ -114,7 +114,7 @@ func (storj *Datastore) DB() *pgxpool.Pool {
 }
 
 func (storj *Datastore) Put(key ds.Key, value []byte) (err error) {
-	storj.logger.Printf("Sync requested for key %s and data of %d bytes\n", key, len(value))
+	storj.logger.Printf("Put requested for key %s and data of %d bytes\n", key, len(value))
 	defer func() {
 		if err == nil {
 			storj.logger.Printf("Put for key %s returned\n", key)
