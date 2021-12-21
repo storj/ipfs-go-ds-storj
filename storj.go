@@ -23,7 +23,7 @@ import (
 	"storj.io/uplink"
 )
 
-type StorjDS struct {
+type Datastore struct {
 	Config
 	logFile *os.File
 	logger  *log.Logger
@@ -42,7 +42,7 @@ type Config struct {
 	MaxPackSize  int
 }
 
-func NewStorjDatastore(conf Config) (*StorjDS, error) {
+func NewDatastore(conf Config) (*Datastore, error) {
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
 	var logFile *os.File
 
@@ -89,7 +89,7 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 		return nil, fmt.Errorf("failed to open Storj project: %s", err)
 	}
 
-	return &StorjDS{
+	return &Datastore{
 		Config:  conf,
 		logFile: logFile,
 		logger:  logger,
@@ -99,21 +99,21 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	}, nil
 }
 
-func (storj *StorjDS) WithInterval(interval time.Duration) *StorjDS {
+func (storj *Datastore) WithInterval(interval time.Duration) *Datastore {
 	storj.packer.WithInterval(interval)
 	return storj
 }
 
-func (storj *StorjDS) WithPackSize(min, max int) *StorjDS {
+func (storj *Datastore) WithPackSize(min, max int) *Datastore {
 	storj.packer.WithPackSize(min, max)
 	return storj
 }
 
-func (storj *StorjDS) DB() *pgxpool.Pool {
+func (storj *Datastore) DB() *pgxpool.Pool {
 	return storj.db
 }
 
-func (storj *StorjDS) Put(key ds.Key, value []byte) (err error) {
+func (storj *Datastore) Put(key ds.Key, value []byte) (err error) {
 	storj.logger.Printf("Sync requested for key %s and data of %d bytes\n", key, len(value))
 	defer func() {
 		if err == nil {
@@ -141,7 +141,7 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) (err error) {
 	return nil
 }
 
-func (storj *StorjDS) Sync(prefix ds.Key) (err error) {
+func (storj *Datastore) Sync(prefix ds.Key) (err error) {
 	storj.logger.Printf("Sync requested for prefix '%s'\n", prefix)
 	defer func() {
 		if err == nil {
@@ -156,7 +156,7 @@ func (storj *StorjDS) Sync(prefix ds.Key) (err error) {
 	return nil
 }
 
-func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
+func (storj *Datastore) Get(key ds.Key) (data []byte, err error) {
 	storj.logger.Printf("Get requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -187,7 +187,7 @@ func (storj *StorjDS) Get(key ds.Key) (data []byte, err error) {
 	}
 }
 
-func (storj *StorjDS) readDataFromPack(ctx context.Context, packObject string, packOffset, size int) ([]byte, error) {
+func (storj *Datastore) readDataFromPack(ctx context.Context, packObject string, packOffset, size int) ([]byte, error) {
 	download, err := storj.project.DownloadObject(ctx, storj.Bucket, packObject, &uplink.DownloadOptions{
 		Offset: int64(packOffset),
 		Length: int64(size),
@@ -207,7 +207,7 @@ func (storj *StorjDS) readDataFromPack(ctx context.Context, packObject string, p
 	return data, nil
 }
 
-func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
+func (storj *Datastore) Has(key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -235,7 +235,7 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	return !deleted, nil
 }
 
-func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
+func (storj *Datastore) GetSize(key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize requested for key %s\n", key)
 	// defer func() {
@@ -268,7 +268,7 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	return size, nil
 }
 
-func (storj *StorjDS) Delete(key ds.Key) (err error) {
+func (storj *Datastore) Delete(key ds.Key) (err error) {
 	storj.logger.Printf("Delete requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -312,7 +312,7 @@ func (storj *StorjDS) Delete(key ds.Key) (err error) {
 	return err
 }
 
-func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
+func (storj *Datastore) Query(q dsq.Query) (result dsq.Results, err error) {
 	storj.logger.Printf("Query requested: %s\n", q)
 	defer func() {
 		if err == nil {
@@ -324,7 +324,7 @@ func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
 
 	// TODO: implement orders and filters
 	if q.Orders != nil || q.Filters != nil {
-		return nil, fmt.Errorf("storjds: filters or orders are not supported")
+		return nil, fmt.Errorf("Datastore: filters or orders are not supported")
 	}
 
 	// Storj stores a "/foo" key as "foo" so we need to trim the leading "/"
@@ -400,7 +400,7 @@ func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
 	}), nil
 }
 
-func (storj *StorjDS) Batch() (ds.Batch, error) {
+func (storj *Datastore) Batch() (ds.Batch, error) {
 	storj.logger.Println("Batch")
 
 	return &storjBatch{
@@ -409,11 +409,11 @@ func (storj *StorjDS) Batch() (ds.Batch, error) {
 	}, nil
 }
 
-func (storj *StorjDS) TriggerWaitPacker() {
+func (storj *Datastore) TriggerWaitPacker() {
 	storj.packer.TriggerWait()
 }
 
-func (storj *StorjDS) Close() error {
+func (storj *Datastore) Close() error {
 	storj.logger.Println("Close")
 
 	err := errs.Combine(
@@ -440,7 +440,7 @@ type Block struct {
 	PackOffset int
 }
 
-func (storj *StorjDS) GetBlock(ctx context.Context, key ds.Key) (*Block, error) {
+func (storj *Datastore) GetBlock(ctx context.Context, key ds.Key) (*Block, error) {
 	cid := storjKey(key)
 
 	block := Block{
@@ -476,7 +476,7 @@ func isNotFound(err error) bool {
 }
 
 type storjBatch struct {
-	storj *StorjDS
+	storj *Datastore
 	ops   map[ds.Key]batchOp
 }
 
@@ -525,4 +525,4 @@ func (b *storjBatch) Commit() error {
 	return nil
 }
 
-var _ ds.Batching = (*StorjDS)(nil)
+var _ ds.Batching = (*Datastore)(nil)

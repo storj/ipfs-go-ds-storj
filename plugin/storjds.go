@@ -98,5 +98,5 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 }
 
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
-	return storjds.NewStorjDatastore(storj.cfg)
+	return storjds.NewDatastore(storj.cfg)
 }

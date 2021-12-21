@@ -22,7 +22,7 @@ import (
 
 func TestPack(t *testing.T) {
 	testutil.RunTest(t, "pack",
-		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.StorjDS) {
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 			storj = storj.WithPackSize(1*memory.MiB.Int(), 2*memory.MiB.Int())
 
 			var keys []ds.Key

@@ -16,7 +16,7 @@ import (
 	"storj.io/storj/private/testplanet"
 )
 
-func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.StorjDS)) {
+func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore)) {
 	testplanet.Run(t, testplanet.Config{
 		SatelliteCount:   1,
 		StorageNodeCount: 4,
@@ -48,7 +48,7 @@ func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Co
 		_, err = conn.Exec(ctx, "CREATE SCHEMA "+pgutil.QuoteSchema(schemaName))
 		require.NoError(t, err)
 
-		storj, err := storjds.NewStorjDatastore(storjds.Config{
+		storj, err := storjds.NewDatastore(storjds.Config{
 			DBURI:       pgutil.ConnstrWithSchema(dbURI, schemaName),
 			Bucket:      bucket,
 			AccessGrant: access,
