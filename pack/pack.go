@@ -5,13 +5,14 @@ package pack
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/zeebo/errs"
 
 	"storj.io/common/memory"
@@ -41,7 +42,7 @@ const (
 
 type Chore struct {
 	logger   *log.Logger
-	db       *sql.DB
+	db       *pgxpool.Pool
 	project  *uplink.Project
 	bucket   string
 	interval time.Duration
@@ -51,7 +52,7 @@ type Chore struct {
 	runOnce  sync.Once
 }
 
-func NewChore(logger *log.Logger, db *sql.DB, project *uplink.Project, bucket string) *Chore {
+func NewChore(logger *log.Logger, db *pgxpool.Pool, project *uplink.Project, bucket string) *Chore {
 	return &Chore{
 		logger:   logger,
 		db:       db,
@@ -166,7 +167,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 }
 
 func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error) {
-	result, err := chore.db.ExecContext(ctx, `
+	result, err := chore.db.Exec(ctx, `
 		WITH next_pack AS (
 			SELECT b.cid, sum(b2.size) AS sums
 			FROM blocks b
@@ -186,10 +187,7 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 		return nil, err
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
+	affected := result.RowsAffected()
 
 	chore.logger.Printf("queryNextPack: affected %d rows", affected)
 
@@ -197,7 +195,7 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 		return nil, nil
 	}
 
-	rows, err := chore.db.QueryContext(ctx, `
+	rows, err := chore.db.Query(ctx, `
 		SELECT cid, data
 		FROM blocks
 		WHERE
@@ -225,20 +223,20 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 }
 
 func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
-	tx, err := chore.db.BeginTx(ctx, nil)
+	tx, err := chore.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			err = errs.Combine(err, tx.Rollback())
+			err = errs.Combine(err, tx.Rollback(ctx))
 			return
 		}
-		err = tx.Commit()
+		err = tx.Commit(ctx)
 	}()
 
 	for cid, off := range cidOffs {
-		result, err := tx.ExecContext(ctx, `
+		result, err := tx.Exec(ctx, `
 			UPDATE blocks
 			SET
 				pack_status = `+packedStatus+`, 
@@ -253,11 +251,7 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string
 			return err
 		}
 
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-
+		affected := result.RowsAffected()
 		if affected != 1 {
 			return fmt.Errorf("unexpected number of blocks updated db: want 1, got %d", affected)
 		}

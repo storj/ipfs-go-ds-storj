@@ -5,7 +5,6 @@ package storjds
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -16,8 +15,9 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/zeebo/errs"
 
 	"storj.io/uplink"
@@ -27,13 +27,13 @@ type StorjDS struct {
 	Config
 	logFile *os.File
 	logger  *log.Logger
-	db      *sql.DB
+	db      *pgxpool.Pool
 	project *uplink.Project
 	packer  *pack.Chore
 }
 
 type Config struct {
-	DBPath       string
+	DBURI        string
 	AccessGrant  string
 	Bucket       string
 	LogFile      string
@@ -57,25 +57,19 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 
 	logger.Println("NewStorjDatastore")
 
-	if len(conf.DBPath) == 0 {
-		conf.DBPath = "cache.db"
-	}
-	db, err := sql.Open("sqlite3", conf.DBPath)
+	db, err := pgxpool.Connect(context.Background(), conf.DBURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open cache database: %s", err)
+		return nil, fmt.Errorf("failed to connect to cache database: %s", err)
 	}
 
-	// Avoid "database is locked" errors when sqlite db is accessed concurrently.
-	db.SetMaxOpenConns(1)
-
-	_, err = db.ExecContext(context.Background(), `
+	_, err = db.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS blocks (
 			cid TEXT NOT NULL,
 			size INTEGER NOT NULL,
-			created TIMESTAMP NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')),
-			data BLOB,
-			deleted INTEGER NOT NULL DEFAULT false,
-			pack_object TEXT NOT NULL DEFAULT "",
+			created TIMESTAMP NOT NULL DEFAULT NOW(),
+			data BYTEA,
+			deleted BOOLEAN NOT NULL DEFAULT false,
+			pack_object TEXT NOT NULL DEFAULT '',
 			pack_offset INTEGER NOT NULL DEFAULT 0,
 			pack_status INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY ( cid )
@@ -105,7 +99,17 @@ func NewStorjDatastore(conf Config) (*StorjDS, error) {
 	}, nil
 }
 
-func (storj *StorjDS) DB() *sql.DB {
+func (storj *StorjDS) WithInterval(interval time.Duration) *StorjDS {
+	storj.packer.WithInterval(interval)
+	return storj
+}
+
+func (storj *StorjDS) WithPackSize(min, max int) *StorjDS {
+	storj.packer.WithPackSize(min, max)
+	return storj
+}
+
+func (storj *StorjDS) DB() *pgxpool.Pool {
 	return storj.db
 }
 
@@ -119,7 +123,7 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) (err error) {
 		}
 	}()
 
-	result, err := storj.db.ExecContext(context.Background(), `
+	result, err := storj.db.Exec(context.Background(), `
 		INSERT INTO blocks (cid, size, data)
 		VALUES ($1, $2, $3)
 		ON CONFLICT(cid)
@@ -129,11 +133,7 @@ func (storj *StorjDS) Put(key ds.Key, value []byte) (err error) {
 		return err
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
+	affected := result.RowsAffected()
 	if affected != 1 {
 		return fmt.Errorf("expected 1 row inserted in db, but did %d", affected)
 	}
@@ -218,7 +218,7 @@ func (storj *StorjDS) Has(key ds.Key) (exists bool, err error) {
 	}()
 
 	var deleted bool
-	err = storj.db.QueryRowContext(context.Background(), `
+	err = storj.db.QueryRow(context.Background(), `
 		SELECT deleted
 		FROM blocks
 		WHERE cid = $1
@@ -247,7 +247,7 @@ func (storj *StorjDS) GetSize(key ds.Key) (size int, err error) {
 	// }()
 
 	var deleted bool
-	err = storj.db.QueryRowContext(context.Background(), `
+	err = storj.db.QueryRow(context.Background(), `
 		SELECT size, deleted
 		FROM blocks
 		WHERE cid = $1
@@ -277,22 +277,37 @@ func (storj *StorjDS) Delete(key ds.Key) (err error) {
 			storj.logger.Printf("Delete for key %s returned error: %v\n", key, err)
 		}
 	}()
-	storj.logger.Printf("Delete --- key: %s\n", key)
+
+	ctx := context.Background()
+
+	tx, err := storj.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			err = errs.Combine(err, tx.Rollback(ctx))
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
 
 	cid := storjKey(key)
 
-	_, err = storj.db.ExecContext(context.Background(), `
+	_, err = tx.Exec(ctx, `
 		DELETE FROM blocks
 		WHERE
 			cid = $1 AND
 			pack_status = 0;
+	`, cid)
 
+	_, err = tx.Exec(ctx, `
 		UPDATE blocks
 		SET deleted = true
 		WHERE
-			cid = $2 AND
+			cid = $1 AND
 			pack_status > 0;
-	`, cid, cid)
+	`, cid)
 
 	return err
 }
@@ -329,7 +344,7 @@ func (storj *StorjDS) Query(q dsq.Query) (result dsq.Results, err error) {
 		query += fmt.Sprintf(" OFFSET %d", q.Offset)
 	}
 
-	rows, err := storj.db.Query(query)
+	rows, err := storj.db.Query(context.Background(), query)
 	if err != nil {
 		return nil, err
 	}
@@ -404,8 +419,9 @@ func (storj *StorjDS) Close() error {
 	err := errs.Combine(
 		storj.packer.Close(),
 		storj.project.Close(),
-		storj.db.Close(),
 	)
+
+	storj.db.Close()
 
 	if storj.logFile != nil {
 		err = errs.Combine(err, storj.logFile.Close())
@@ -431,7 +447,7 @@ func (storj *StorjDS) GetBlock(ctx context.Context, key ds.Key) (*Block, error) 
 		CID: cid,
 	}
 
-	err := storj.db.QueryRowContext(ctx, `
+	err := storj.db.QueryRow(ctx, `
 		SELECT
 			size, data, deleted,
 			pack_status, pack_object, pack_offset
@@ -456,7 +472,7 @@ func storjKey(ipfsKey ds.Key) string {
 }
 
 func isNotFound(err error) bool {
-	return errors.Is(err, uplink.ErrObjectNotFound) || errors.Is(err, sql.ErrNoRows)
+	return errors.Is(err, pgx.ErrNoRows)
 }
 
 type storjBatch struct {

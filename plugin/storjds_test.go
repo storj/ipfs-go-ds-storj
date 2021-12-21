@@ -20,17 +20,28 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Default case
 			Input: map[string]interface{}{
+				"dbURI":       "somedburi",
 				"bucket":      "somebucket",
 				"accessGrant": "someaccessgrant",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
+				DBURI:       "somedburi",
 				Bucket:      "somebucket",
 				AccessGrant: "someaccessgrant",
 			}},
 		},
 		{
+			// Required dbURI fields missing
+			Input: map[string]interface{}{
+				"bucket":      "somebucket",
+				"accessGrant": "someaccessgrant",
+			},
+			HasErr: true,
+		},
+		{
 			// Required bucket fields missing
 			Input: map[string]interface{}{
+				"dbURI":       "somedburi",
 				"accessGrant": "someaccessgrant",
 			},
 			HasErr: true,
@@ -38,6 +49,7 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Required accessGrant fields missing
 			Input: map[string]interface{}{
+				"dbURI":  "somedburi",
 				"bucket": "somebucket",
 			},
 			HasErr: true,
@@ -45,12 +57,14 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Optional fields included
 			Input: map[string]interface{}{
+				"dbURI":        "somedburi",
 				"bucket":       "somebucket",
 				"accessGrant":  "someaccessgrant",
 				"logFile":      "somelogfile",
 				"packInterval": "3m",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
+				DBURI:        "somedburi",
 				Bucket:       "somebucket",
 				AccessGrant:  "someaccessgrant",
 				LogFile:      "somelogfile",
@@ -60,6 +74,7 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Invalid packInterval format
 			Input: map[string]interface{}{
+				"dbURI":        "somedburi",
 				"bucket":       "somebucket",
 				"accessGrant":  "someaccessgrant",
 				"packInterval": "3",
