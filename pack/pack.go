@@ -23,8 +23,8 @@ import (
 
 const (
 	DefaultInterval = 1 * time.Minute
-	DefaultMinSize  = 32 * memory.MiB
-	DefaultMaxSize  = 60 * memory.MiB
+	DefaultMinSize  = 60 * memory.MiB
+	DefaultMaxSize  = 62 * memory.MiB
 	MaxBlockSize    = 1 * memory.MiB
 )
 
