@@ -58,15 +58,17 @@ The `config` file should include the following:
         {
           "child": {
             "type": "storjds",
+            "dbURI": "$postgresDBURI",
             "bucket": "$bucketname",
             "accessGrant": "$accessGrant",
-            "logFile": "$pathToLogFile",
+            "logFile": "$pathToLogFile"
           },
           "mountpoint": "/blocks",
           "prefix": "storj.datastore",
           "type": "measure"
         },
 ```
+`$postgresDBURI` is the URI to a PostgreSQL database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
 
 `$bucketname` is a bucket on Storj DCS. It must be created.
 
