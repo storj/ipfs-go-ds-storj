@@ -1,6 +1,6 @@
-# Storj Datastore Implementation
+# Storj Datastore for IPFS
 
-This is an implementation of the datastore interface backed by Storj.
+This is an implementation of the IPFS datastore interface backed by Storj.
 
 **NOTE:** Plugins only work on Linux and MacOS at the moment. You can track the progress of this issue here: https://github.com/golang/go/issues/19282
 
