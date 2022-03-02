@@ -48,7 +48,7 @@ func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Co
 		_, err = conn.Exec(ctx, "CREATE SCHEMA "+pgutil.QuoteSchema(schemaName))
 		require.NoError(t, err)
 
-		storj, err := storjds.NewDatastore(storjds.Config{
+		storj, err := storjds.NewDatastore(ctx, storjds.Config{
 			DBURI:       pgutil.ConnstrWithSchema(dbURI, schemaName),
 			Bucket:      bucket,
 			AccessGrant: access,

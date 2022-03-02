@@ -42,7 +42,7 @@ type Config struct {
 	MaxPackSize  int
 }
 
-func NewDatastore(conf Config) (*Datastore, error) {
+func NewDatastore(ctx context.Context, conf Config) (*Datastore, error) {
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
 	var logFile *os.File
 
@@ -57,12 +57,12 @@ func NewDatastore(conf Config) (*Datastore, error) {
 
 	logger.Println("NewStorjDatastore")
 
-	db, err := pgxpool.Connect(context.Background(), conf.DBURI)
+	db, err := pgxpool.Connect(ctx, conf.DBURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to cache database: %s", err)
 	}
 
-	_, err = db.Exec(context.Background(), `
+	_, err = db.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS blocks (
 			cid TEXT NOT NULL,
 			size INTEGER NOT NULL,
@@ -84,7 +84,7 @@ func NewDatastore(conf Config) (*Datastore, error) {
 		return nil, fmt.Errorf("failed to parse access grant: %s", err)
 	}
 
-	project, err := uplink.OpenProject(context.Background(), access)
+	project, err := uplink.OpenProject(ctx, access)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open Storj project: %s", err)
 	}
@@ -113,7 +113,7 @@ func (storj *Datastore) DB() *pgxpool.Pool {
 	return storj.db
 }
 
-func (storj *Datastore) Put(key ds.Key, value []byte) (err error) {
+func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
 	storj.logger.Printf("Put requested for key %s and data of %d bytes\n", key, len(value))
 	defer func() {
 		if err == nil {
@@ -123,7 +123,7 @@ func (storj *Datastore) Put(key ds.Key, value []byte) (err error) {
 		}
 	}()
 
-	result, err := storj.db.Exec(context.Background(), `
+	result, err := storj.db.Exec(ctx, `
 		INSERT INTO blocks (cid, size, data)
 		VALUES ($1, $2, $3)
 		ON CONFLICT(cid)
@@ -141,7 +141,7 @@ func (storj *Datastore) Put(key ds.Key, value []byte) (err error) {
 	return nil
 }
 
-func (storj *Datastore) Sync(prefix ds.Key) (err error) {
+func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
 	storj.logger.Printf("Sync requested for prefix '%s'\n", prefix)
 	defer func() {
 		if err == nil {
@@ -151,12 +151,12 @@ func (storj *Datastore) Sync(prefix ds.Key) (err error) {
 		}
 	}()
 
-	storj.packer.Run(context.Background())
+	storj.packer.Run(ctx)
 
 	return nil
 }
 
-func (storj *Datastore) Get(key ds.Key) (data []byte, err error) {
+func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 	storj.logger.Printf("Get requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -165,8 +165,6 @@ func (storj *Datastore) Get(key ds.Key) (data []byte, err error) {
 			storj.logger.Printf("Get for key %s returned error: %v\n", key, err)
 		}
 	}()
-
-	ctx := context.Background()
 
 	block, err := storj.GetBlock(ctx, key)
 	if err != nil {
@@ -207,7 +205,7 @@ func (storj *Datastore) readDataFromPack(ctx context.Context, packObject string,
 	return data, nil
 }
 
-func (storj *Datastore) Has(key ds.Key) (exists bool, err error) {
+func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
 	storj.logger.Printf("Has requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -218,7 +216,7 @@ func (storj *Datastore) Has(key ds.Key) (exists bool, err error) {
 	}()
 
 	var deleted bool
-	err = storj.db.QueryRow(context.Background(), `
+	err = storj.db.QueryRow(ctx, `
 		SELECT deleted
 		FROM blocks
 		WHERE cid = $1
@@ -235,7 +233,7 @@ func (storj *Datastore) Has(key ds.Key) (exists bool, err error) {
 	return !deleted, nil
 }
 
-func (storj *Datastore) GetSize(key ds.Key) (size int, err error) {
+func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	// Commented because this method is invoked very often and it is noisy.
 	// storj.logger.Printf("GetSize requested for key %s\n", key)
 	// defer func() {
@@ -247,7 +245,7 @@ func (storj *Datastore) GetSize(key ds.Key) (size int, err error) {
 	// }()
 
 	var deleted bool
-	err = storj.db.QueryRow(context.Background(), `
+	err = storj.db.QueryRow(ctx, `
 		SELECT size, deleted
 		FROM blocks
 		WHERE cid = $1
@@ -268,7 +266,7 @@ func (storj *Datastore) GetSize(key ds.Key) (size int, err error) {
 	return size, nil
 }
 
-func (storj *Datastore) Delete(key ds.Key) (err error) {
+func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 	storj.logger.Printf("Delete requested for key %s\n", key)
 	defer func() {
 		if err == nil {
@@ -277,8 +275,6 @@ func (storj *Datastore) Delete(key ds.Key) (err error) {
 			storj.logger.Printf("Delete for key %s returned error: %v\n", key, err)
 		}
 	}()
-
-	ctx := context.Background()
 
 	tx, err := storj.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -312,7 +308,7 @@ func (storj *Datastore) Delete(key ds.Key) (err error) {
 	return err
 }
 
-func (storj *Datastore) Query(q dsq.Query) (result dsq.Results, err error) {
+func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
 	storj.logger.Printf("Query requested: %s\n", q)
 	defer func() {
 		if err == nil {
@@ -344,7 +340,7 @@ func (storj *Datastore) Query(q dsq.Query) (result dsq.Results, err error) {
 		query += fmt.Sprintf(" OFFSET %d", q.Offset)
 	}
 
-	rows, err := storj.db.Query(context.Background(), query)
+	rows, err := storj.db.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +378,7 @@ func (storj *Datastore) Query(q dsq.Query) (result dsq.Results, err error) {
 					// TODO: optimize to not read this column from DB if keys only
 					entry.Value = data
 				case pack.Packed:
-					entry.Value, err = storj.readDataFromPack(context.Background(), packObject, packOffset, size)
+					entry.Value, err = storj.readDataFromPack(ctx, packObject, packOffset, size)
 					if err != nil {
 						return dsq.Result{Error: err}, false
 					}
@@ -400,7 +396,7 @@ func (storj *Datastore) Query(q dsq.Query) (result dsq.Results, err error) {
 	}), nil
 }
 
-func (storj *Datastore) Batch() (ds.Batch, error) {
+func (storj *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
 	storj.logger.Println("Batch")
 
 	return &storjBatch{
@@ -485,7 +481,7 @@ type batchOp struct {
 	delete bool
 }
 
-func (b *storjBatch) Put(key ds.Key, value []byte) error {
+func (b *storjBatch) Put(ctx context.Context, key ds.Key, value []byte) error {
 	b.storj.logger.Printf("BatchPut --- key: %s --- bytes: %d\n", key, len(value))
 
 	b.ops[key] = batchOp{
@@ -496,7 +492,7 @@ func (b *storjBatch) Put(key ds.Key, value []byte) error {
 	return nil
 }
 
-func (b *storjBatch) Delete(key ds.Key) error {
+func (b *storjBatch) Delete(ctx context.Context, key ds.Key) error {
 	b.storj.logger.Printf("BatchDelete --- key: %s\n", key)
 
 	b.ops[key] = batchOp{
@@ -507,15 +503,15 @@ func (b *storjBatch) Delete(key ds.Key) error {
 	return nil
 }
 
-func (b *storjBatch) Commit() error {
+func (b *storjBatch) Commit(ctx context.Context) error {
 	b.storj.logger.Println("BatchCommit")
 
 	for key, op := range b.ops {
 		var err error
 		if op.delete {
-			err = b.storj.Delete(key)
+			err = b.storj.Delete(ctx, key)
 		} else {
-			err = b.storj.Put(key, op.value)
+			err = b.storj.Put(ctx, key, op.value)
 		}
 		if err != nil {
 			return err

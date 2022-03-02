@@ -4,6 +4,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -98,5 +99,5 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 }
 
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
-	return storjds.NewDatastore(storj.cfg)
+	return storjds.NewDatastore(context.Background(), storj.cfg)
 }
