@@ -36,11 +36,11 @@ func TestPack(t *testing.T) {
 			}
 
 			for i, key := range keys {
-				err := storj.Put(key, blobs[i])
+				err := storj.Put(ctx, key, blobs[i])
 				require.NoError(t, err)
 			}
 
-			err := storj.Sync(ds.Key{})
+			err := storj.Sync(ctx, ds.Key{})
 			require.NoError(t, err)
 
 			storj.TriggerWaitPacker()
@@ -73,7 +73,7 @@ func TestPack(t *testing.T) {
 			require.Equal(t, "application/zip", obj.Custom["content-type"])
 
 			for i, key := range keys {
-				data, err := storj.Get(key)
+				data, err := storj.Get(ctx, key)
 				require.NoError(t, err)
 				assert.Equal(t, blobs[i], data)
 			}
