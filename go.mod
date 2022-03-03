@@ -7,10 +7,10 @@ require (
 	github.com/jackc/pgx/v4 v4.13.0
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.2.2
-	storj.io/common v0.0.0-20211111143956-15b749504e31
-	storj.io/private v0.0.0-20211029202355-a7eae71c382a
-	storj.io/storj v1.45.3
-	storj.io/uplink v1.7.1-0.20211031201307-b30e004c1ccb
+	storj.io/common v0.0.0-20220215191549-ee3a77cfa9eb
+	storj.io/private v0.0.0-20220131131751-c913260b9ec2
+	storj.io/storj v1.49.5
+	storj.io/uplink v1.8.0
 	storj.io/zipper v0.0.0-20211217073604-d5ead2ba573f
 )
 
