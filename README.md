@@ -17,7 +17,7 @@ The datastore plugin must be compiled and bundled together with go-ipfs. The plu
 > cd go-ipfs
 
 # Checkout the desired release tag of go-ipfs.
-> git checkout v0.10.0
+> git checkout v0.12.0
 
 # Pull in the datastore plugin (you can specify a version other than latest if you'd like).
 > go get github.com/kaloyan-raev/ipfs-go-ds-storj/plugin@latest
