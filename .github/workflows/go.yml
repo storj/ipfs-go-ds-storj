@@ -28,7 +28,7 @@ jobs:
           COCKROACH_DATABASE: mydb
           COCKROACH_USER: myuser
           COCKROACH_PASSWORD: mypass
-        options: start-single-node --insecure
+          COCKROACH_INSECURE: true
         ports:
           - 26257:26257
     
