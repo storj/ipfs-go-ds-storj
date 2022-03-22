@@ -22,6 +22,14 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      cockroachdb:
+        image: cockroachdb/cockroach:latest-v21.2
+        env:
+          COCKROACH_DATABASE: mydb
+          COCKROACH_USER: myuser
+          COCKROACH_PASSWORD: mypass
+        ports:
+          - 26257:26257
     
     steps:
     - uses: actions/checkout@v2
@@ -38,3 +46,4 @@ jobs:
       run: go test -v ./...
       env:
         STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
+        STORJ_TEST_COCKROACH: cockroach://myuser:mypass@localhost/mydb?sslmode=disable
