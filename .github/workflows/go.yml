@@ -22,18 +22,12 @@ jobs:
 #          --health-retries 5
 #        ports:
 #          - 5432:5432
-      cockroachdb:
-        image: cockroachdb/cockroach:latest-v21.2
-        env:
-          COCKROACH_DATABASE: mydb
-          COCKROACH_USER: myuser
-          COCKROACH_PASSWORD: mypass
-          COCKROACH_INSECURE: true
-        ports:
-          - 26257:26257
     
     steps:
     - uses: actions/checkout@v2
+
+    - name: Start CockroachDB
+      run: docker run --rm -d -p 26257:26257 cockroachdb/cockroach:latest-v21.2 start-single-node --insecure
 
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -47,4 +41,4 @@ jobs:
       run: go test -v ./...
       env:
 #        STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
-        STORJ_TEST_COCKROACH: cockroach://myuser:mypass@localhost/mydb?sslmode=disable
+        STORJ_TEST_COCKROACH: cockroach://root@localhost:26257/defaultdb?sslmode=disable
