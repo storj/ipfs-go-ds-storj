@@ -4,9 +4,9 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ipfs v0.12.0
-	github.com/jackc/pgx/v4 v4.13.0
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.2.2
+	go.uber.org/zap v1.19.1
 	storj.io/common v0.0.0-20220215191549-ee3a77cfa9eb
 	storj.io/private v0.0.0-20220131131751-c913260b9ec2
 	storj.io/storj v1.49.5

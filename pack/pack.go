@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
 	"github.com/zeebo/errs"
 
 	"storj.io/common/memory"
@@ -42,7 +41,7 @@ const (
 
 type Chore struct {
 	logger   *log.Logger
-	db       *pgxpool.Pool
+	db       *db.DB
 	project  *uplink.Project
 	bucket   string
 	interval time.Duration
@@ -52,7 +51,7 @@ type Chore struct {
 	runOnce  sync.Once
 }
 
-func NewChore(logger *log.Logger, db *pgxpool.Pool, project *uplink.Project, bucket string) *Chore {
+func NewChore(logger *log.Logger, db *db.DB, project *uplink.Project, bucket string) *Chore {
 	return &Chore{
 		logger:   logger,
 		db:       db,
@@ -187,7 +186,10 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 		return nil, err
 	}
 
-	affected := result.RowsAffected()
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
 
 	chore.logger.Printf("queryNextPack: affected %d rows", affected)
 
@@ -223,16 +225,16 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 }
 
 func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
-	tx, err := chore.db.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := chore.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			err = errs.Combine(err, tx.Rollback(ctx))
+			err = errs.Combine(err, tx.Rollback())
 			return
 		}
-		err = tx.Commit(ctx)
+		err = tx.Commit()
 	}()
 
 	for cid, off := range cidOffs {
@@ -251,7 +253,10 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string
 			return err
 		}
 
-		affected := result.RowsAffected()
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
 		if affected != 1 {
 			return fmt.Errorf("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
