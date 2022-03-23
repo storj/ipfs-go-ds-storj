@@ -11,7 +11,7 @@ require (
 	storj.io/private v0.0.0-20220131131751-c913260b9ec2
 	storj.io/storj v1.49.5
 	storj.io/uplink v1.8.0
-	storj.io/zipper v0.0.0-20211217073604-d5ead2ba573f
+	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
 
 go 1.16

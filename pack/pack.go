@@ -141,7 +141,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 				return err
 			}
 
-			cidOffs[cid] = int(writer.ContentOffset)
+			cidOffs[cid] = int(writer.ContentOffset())
 
 			_, err = writer.Write(data)
 			if err != nil {
