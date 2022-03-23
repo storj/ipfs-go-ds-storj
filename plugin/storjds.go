@@ -5,7 +5,6 @@ package plugin
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ipfs/go-ipfs/plugin"
@@ -13,7 +12,11 @@ import (
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
+	"github.com/zeebo/errs"
 )
+
+// Error is the error class for Storj datastore plugin.
+var Error = errs.Class("storjds")
 
 var Plugins = []plugin.Plugin{
 	&StorjPlugin{},
@@ -41,17 +44,17 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 	return func(m map[string]interface{}) (fsrepo.DatastoreConfig, error) {
 		dbURI, ok := m["dbURI"].(string)
 		if !ok {
-			return nil, fmt.Errorf("storjds: no dbURI specified")
+			return nil, Error.New("no dbURI specified")
 		}
 
 		bucket, ok := m["bucket"].(string)
 		if !ok {
-			return nil, fmt.Errorf("storjds: no bucket specified")
+			return nil, Error.New("no bucket specified")
 		}
 
 		accessGrant, ok := m["accessGrant"].(string)
 		if !ok {
-			return nil, fmt.Errorf("storjds: no accessGrant specified")
+			return nil, Error.New("no accessGrant specified")
 		}
 
 		// Optional.
@@ -60,7 +63,7 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 		if v, ok := m["logFile"]; ok {
 			logFile, ok = v.(string)
 			if !ok {
-				return nil, fmt.Errorf("storjds: logFile not a string")
+				return nil, Error.New("logFile not a string")
 			}
 		}
 
@@ -68,12 +71,12 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 		if v, ok := m["packInterval"]; ok {
 			interval, ok := v.(string)
 			if !ok {
-				return nil, fmt.Errorf("storjds: packInterval not a string")
+				return nil, Error.New("packInterval not a string")
 			}
 			var err error
 			packInterval, err = time.ParseDuration(interval)
 			if err != nil {
-				return nil, fmt.Errorf("storjds: packInterval not a duration: %v", err)
+				return nil, Error.New("packInterval not a duration: %v", err)
 			}
 		}
 
@@ -104,12 +107,12 @@ func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 
 	db, err := db.Open(ctx, storj.cfg.DBURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to cache database: %s", err)
+		return nil, Error.New("failed to connect to cache database: %s", err)
 	}
 
 	err = db.MigrateToLatest(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cache database schema: %s", err)
+		return nil, Error.New("failed to migrate database schema: %s", err)
 	}
 
 	return storjds.NewDatastore(context.Background(), storj.cfg, db)

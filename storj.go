@@ -23,6 +23,9 @@ import (
 	"storj.io/uplink"
 )
 
+// Error is the error class for Storj datastore.
+var Error = errs.Class("storjds")
+
 type Datastore struct {
 	Config
 	logFile *os.File
@@ -50,7 +53,7 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		var err error
 		logFile, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create log file: %s", err)
+			return nil, Error.New("failed to create log file: %v", err)
 		}
 		logger = log.New(logFile, "", log.LstdFlags|log.Lmicroseconds)
 	}
@@ -59,12 +62,12 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse access grant: %s", err)
+		return nil, Error.New("failed to parse access grant: %v", err)
 	}
 
 	project, err := uplink.OpenProject(ctx, access)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open Storj project: %s", err)
+		return nil, Error.New("failed to open Storj project: %s", err)
 	}
 
 	return &Datastore{
@@ -108,15 +111,15 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 		DO UPDATE SET deleted = false
 	`, storjKey(key), len(value), value)
 	if err != nil {
-		return err
+		return Error.Wrap(err)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return Error.Wrap(err)
 	}
 	if affected != 1 {
-		return fmt.Errorf("expected 1 row inserted in db, but did %d", affected)
+		return Error.New("expected 1 row inserted in db, but did %d", affected)
 	}
 
 	return nil
@@ -149,6 +152,7 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 
 	block, err := storj.GetBlock(ctx, key)
 	if err != nil {
+		// do not wrap error to avoid wrapping ds.ErrNotFound
 		return nil, err
 	}
 
@@ -162,7 +166,7 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 	case pack.Packed:
 		return storj.readDataFromPack(ctx, block.PackObject, block.PackOffset, block.Size)
 	default:
-		return nil, fmt.Errorf("unknown pack status: %d", block.PackStatus)
+		return nil, Error.New("unknown pack status: %d", block.PackStatus)
 	}
 }
 
@@ -172,7 +176,7 @@ func (storj *Datastore) readDataFromPack(ctx context.Context, packObject string,
 		Length: int64(size),
 	})
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 	defer func() {
 		err = errs.Combine(err, download.Close())
@@ -180,7 +184,7 @@ func (storj *Datastore) readDataFromPack(ctx context.Context, packObject string,
 
 	data, err := ioutil.ReadAll(download)
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	return data, nil
@@ -208,7 +212,7 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 		if isNotFound(err) {
 			return false, nil
 		}
-		return false, err
+		return false, Error.Wrap(err)
 	}
 
 	return !deleted, nil
@@ -237,7 +241,7 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 		if isNotFound(err) {
 			return -1, ds.ErrNotFound
 		}
-		return -1, err
+		return -1, Error.Wrap(err)
 	}
 
 	if deleted {
@@ -259,7 +263,7 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 
 	tx, err := storj.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return Error.Wrap(err)
 	}
 	defer func() {
 		if err != nil {
@@ -286,7 +290,7 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 			pack_status > 0;
 	`, cid)
 
-	return err
+	return Error.Wrap(err)
 }
 
 func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
@@ -301,7 +305,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 
 	// TODO: implement orders and filters
 	if q.Orders != nil || q.Filters != nil {
-		return nil, fmt.Errorf("Datastore: filters or orders are not supported")
+		return nil, Error.New("filters or orders are not supported")
 	}
 
 	// Storj stores a "/foo" key as "foo" so we need to trim the leading "/"
@@ -323,7 +327,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 
 	rows, err := storj.db.Query(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	return dsq.ResultsFromIterator(q, dsq.Iterator{
@@ -348,7 +352,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 
 			err := rows.Scan(&key, &size, &data, &packStatus, &packObject, &packOffset)
 			if err != nil {
-				return dsq.Result{Error: err}, false
+				return dsq.Result{Error: Error.Wrap(err)}, false
 			}
 
 			entry := dsq.Entry{Key: "/" + key}
@@ -361,10 +365,10 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 				case pack.Packed:
 					entry.Value, err = storj.readDataFromPack(ctx, packObject, packOffset, size)
 					if err != nil {
-						return dsq.Result{Error: err}, false
+						return dsq.Result{Error: Error.Wrap(err)}, false
 					}
 				default:
-					return dsq.Result{Error: fmt.Errorf("unknown pack status: %d", packStatus)}, false
+					return dsq.Result{Error: Error.New("unknown pack status: %d", packStatus)}, false
 				}
 			}
 			if q.ReturnsSizes {
@@ -403,7 +407,7 @@ func (storj *Datastore) Close() error {
 		err = errs.Combine(err, storj.logFile.Close())
 	}
 
-	return err
+	return Error.Wrap(err)
 }
 
 type Block struct {
@@ -437,7 +441,7 @@ func (storj *Datastore) GetBlock(ctx context.Context, key ds.Key) (*Block, error
 		if isNotFound(err) {
 			return nil, ds.ErrNotFound
 		}
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	return &block, nil
@@ -494,7 +498,7 @@ func (b *storjBatch) Commit(ctx context.Context) error {
 			err = b.storj.Put(ctx, key, op.value)
 		}
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 	}
 

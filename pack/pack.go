@@ -5,7 +5,6 @@ package pack
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -19,6 +18,9 @@ import (
 	"storj.io/uplink"
 	"storj.io/zipper"
 )
+
+// Error is the error class for pack chore.
+var Error = errs.Class("pack")
 
 const (
 	DefaultInterval = 1 * time.Minute
@@ -116,7 +118,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 	for {
 		blocks, err := chore.queryNextPack(ctx)
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 
 		if len(blocks) == 0 {
@@ -129,7 +131,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 		packObjectKey := uuid.NewString()
 		pack, err := zipper.CreatePack(ctx, chore.project, chore.bucket, packObjectKey, nil)
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 
 		chore.logger.Printf("Pack: created pending pack %s", packObjectKey)
@@ -138,14 +140,14 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 		for cid, data := range blocks {
 			writer, err := pack.Add(ctx, cid, &zipper.FileHeader{Uncompressed: true})
 			if err != nil {
-				return err
+				return Error.Wrap(err)
 			}
 
 			cidOffs[cid] = int(writer.ContentOffset())
 
 			_, err = writer.Write(data)
 			if err != nil {
-				return err
+				return Error.Wrap(err)
 			}
 
 			chore.logger.Printf("Pack: added block %s of size %d to pack %s at offset %d", cid, len(data), packObjectKey, cidOffs[cid])
@@ -153,14 +155,14 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 
 		err = pack.Commit(ctx)
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 
 		chore.logger.Printf("Pack: committed pack %s", packObjectKey)
 
 		err = chore.updatePackedBlocks(ctx, packObjectKey, cidOffs)
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 	}
 }
@@ -183,12 +185,12 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 			cid IN (SELECT cid FROM next_pack)
 	`, chore.maxSize, chore.minSize)
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	chore.logger.Printf("queryNextPack: affected %d rows", affected)
@@ -204,7 +206,7 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 			pack_status = `+packingStatus+`
 	`)
 	if err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 	defer rows.Close()
 
@@ -213,12 +215,12 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 		var cid string
 		var data []byte
 		if err := rows.Scan(&cid, &data); err != nil {
-			return nil, err
+			return nil, Error.Wrap(err)
 		}
 		blocks[cid] = data
 	}
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Error.Wrap(err)
 	}
 
 	return blocks, nil
@@ -227,7 +229,7 @@ func (chore *Chore) queryNextPack(ctx context.Context) (map[string][]byte, error
 func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
 	tx, err := chore.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return Error.Wrap(err)
 	}
 	defer func() {
 		if err != nil {
@@ -250,15 +252,15 @@ func (chore *Chore) updatePackedBlocks(ctx context.Context, packObjectKey string
 				pack_status = `+packingStatus+`
 		`, packObjectKey, off, cid)
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 
 		affected, err := result.RowsAffected()
 		if err != nil {
-			return err
+			return Error.Wrap(err)
 		}
 		if affected != 1 {
-			return fmt.Errorf("unexpected number of blocks updated db: want 1, got %d", affected)
+			return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
 
 		chore.logger.Printf("Pack: updated block %s status as packed at offset %d", cid, off)

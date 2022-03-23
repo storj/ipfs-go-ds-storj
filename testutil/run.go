@@ -4,8 +4,6 @@
 package testutil
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"testing"
 
@@ -75,16 +73,16 @@ func dbURI(impl dbutil.Implementation) (string, error) {
 	case dbutil.Postgres:
 		dbURI, set := os.LookupEnv("STORJ_TEST_POSTGRES")
 		if !set {
-			return "", errors.New("STORJ_TEST_POSTGRES is not set")
+			return "", errs.New("STORJ_TEST_POSTGRES is not set")
 		}
 		return dbURI, nil
 	case dbutil.Cockroach:
 		dbURI, set := os.LookupEnv("STORJ_TEST_COCKROACH")
 		if !set {
-			return "", errors.New("STORJ_TEST_COCKROACH is not set")
+			return "", errs.New("STORJ_TEST_COCKROACH is not set")
 		}
 		return dbURI, nil
 	default:
-		return "", fmt.Errorf("unsupported database implementation %q", impl)
+		return "", errs.New("unsupported database implementation %q", impl)
 	}
 }
