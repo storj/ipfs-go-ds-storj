@@ -5,6 +5,7 @@ package storjds
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -15,8 +16,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 
@@ -27,7 +27,7 @@ type Datastore struct {
 	Config
 	logFile *os.File
 	logger  *log.Logger
-	db      *pgxpool.Pool
+	db      *db.DB
 	project *uplink.Project
 	packer  *pack.Chore
 }
@@ -42,7 +42,7 @@ type Config struct {
 	MaxPackSize  int
 }
 
-func NewDatastore(ctx context.Context, conf Config) (*Datastore, error) {
+func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, error) {
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
 	var logFile *os.File
 
@@ -56,28 +56,6 @@ func NewDatastore(ctx context.Context, conf Config) (*Datastore, error) {
 	}
 
 	logger.Println("NewStorjDatastore")
-
-	db, err := pgxpool.Connect(ctx, conf.DBURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to cache database: %s", err)
-	}
-
-	_, err = db.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS blocks (
-			cid TEXT NOT NULL,
-			size INTEGER NOT NULL,
-			created TIMESTAMP NOT NULL DEFAULT NOW(),
-			data BYTEA,
-			deleted BOOLEAN NOT NULL DEFAULT false,
-			pack_object TEXT NOT NULL DEFAULT '',
-			pack_offset INTEGER NOT NULL DEFAULT 0,
-			pack_status INTEGER NOT NULL DEFAULT 0,
-			PRIMARY KEY ( cid )
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cache database schema: %s", err)
-	}
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
@@ -109,7 +87,7 @@ func (storj *Datastore) WithPackSize(min, max int) *Datastore {
 	return storj
 }
 
-func (storj *Datastore) DB() *pgxpool.Pool {
+func (storj *Datastore) DB() *db.DB {
 	return storj.db
 }
 
@@ -133,7 +111,10 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 		return err
 	}
 
-	affected := result.RowsAffected()
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if affected != 1 {
 		return fmt.Errorf("expected 1 row inserted in db, but did %d", affected)
 	}
@@ -276,16 +257,16 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 		}
 	}()
 
-	tx, err := storj.db.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := storj.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			err = errs.Combine(err, tx.Rollback(ctx))
+			err = errs.Combine(err, tx.Rollback())
 			return
 		}
-		err = tx.Commit(ctx)
+		err = tx.Commit()
 	}()
 
 	cid := storjKey(key)
@@ -415,9 +396,8 @@ func (storj *Datastore) Close() error {
 	err := errs.Combine(
 		storj.packer.Close(),
 		storj.project.Close(),
+		storj.db.Close(),
 	)
-
-	storj.db.Close()
 
 	if storj.logFile != nil {
 		err = errs.Combine(err, storj.logFile.Close())
@@ -468,7 +448,7 @@ func storjKey(ipfsKey ds.Key) string {
 }
 
 func isNotFound(err error) bool {
-	return errors.Is(err, pgx.ErrNoRows)
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 type storjBatch struct {
