@@ -11,17 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     
     services:
-     postgres:
-       image: postgres:13
-       env:
-         POSTGRES_PASSWORD: postgres
-       options: >-
-         --health-cmd pg_isready
-         --health-interval 10s
-         --health-timeout 5s
-         --health-retries 5
-       ports:
-         - 5432:5432
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     
     steps:
     - uses: actions/checkout@v2
@@ -40,5 +40,5 @@ jobs:
     - name: Test
       run: go test -v ./...
       env:
-#        STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
+        STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
         STORJ_TEST_COCKROACH: cockroach://root@localhost:26257/defaultdb?sslmode=disable
