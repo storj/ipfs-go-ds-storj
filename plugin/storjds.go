@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
 )
 
 var Plugins = []plugin.Plugin{
@@ -99,5 +100,17 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 }
 
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
-	return storjds.NewDatastore(context.Background(), storj.cfg)
+	ctx := context.Background()
+
+	db, err := db.Open(ctx, storj.cfg.DBURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to cache database: %s", err)
+	}
+
+	err = db.MigrateToLatest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache database schema: %s", err)
+	}
+
+	return storjds.NewDatastore(context.Background(), storj.cfg, db)
 }
