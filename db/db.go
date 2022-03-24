@@ -13,6 +13,9 @@ import (
 	"storj.io/private/tagsql"
 )
 
+// Error is the error class for datastore database.
+var Error = errs.Class("db")
+
 // DB is the datastore database for mapping IPFS blocks to Storj object packs.
 type DB struct {
 	tagsql.DB
@@ -23,7 +26,7 @@ func Open(ctx context.Context, databaseURL string) (*DB, error) {
 	var driverName string
 	_, _, impl, err := dbutil.SplitConnStr(driverName)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, Error.Wrap(err)
 	}
 	switch impl {
 	case dbutil.Postgres:
@@ -31,12 +34,12 @@ func Open(ctx context.Context, databaseURL string) (*DB, error) {
 	case dbutil.Cockroach:
 		driverName = "cockroach"
 	default:
-		return nil, errs.New("unsupported implementation: %s", driverName)
+		return nil, Error.New("unsupported implementation: %s", driverName)
 	}
 
 	db, err := tagsql.Open(ctx, driverName, databaseURL)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, Error.Wrap(err)
 	}
 
 	return Wrap(db), nil
