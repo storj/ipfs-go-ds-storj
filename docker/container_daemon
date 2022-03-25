@@ -1,0 +1,65 @@
+#!/bin/sh
+set -e
+user=ipfs
+repo="$IPFS_PATH"
+
+if [ `id -u` -eq 0 ]; then
+  echo "Changing user to $user"
+  # ensure folder is writable
+  su-exec "$user" test -w "$repo" || chown -R -- "$user" "$repo"
+  # restart script with new privileges
+  exec su-exec "$user" "$0" "$@"
+fi
+
+# 2nd invocation with regular user
+ipfs version
+
+if [ -e "$repo/config" ]; then
+  echo "Found IPFS fs-repo at $repo"
+else
+  case "$IPFS_PROFILE" in
+    "") INIT_ARGS="" ;;
+    *) INIT_ARGS="--profile=$IPFS_PROFILE" ;;
+  esac
+  ipfs init --empty-repo $INIT_ARGS
+  ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001
+  ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080
+
+  # Storj-specific configuration
+  ipfs config --bool Gateway.NoFetch true
+  ipfs config --json Gateway.PublicGateways "{\"localhost:8080\":{\"NoDNSLink\": false,\"Paths\": [\"/ipfs\"],\"UseSubdomains\": false}}"
+  ipfs config --json Datastore.Spec "{\"mounts\":[{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"/tmp/ipfs.log\"},\"mountpoint\": \"/blocks\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"datastore\",\"type\": \"levelds\"},\"mountpoint\": \"/\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
+  echo -e "{\"mounts\":[{\"bucket\":\"ipfs\",\"mountpoint\":\"/blocks\"},{\"mountpoint\":\"/\",\"path\":\"datastore\",\"type\":\"levelds\"}],\"type\":\"mount\"}" > $repo/datastore_spec
+
+  # Set up the swarm key, if provided
+
+  SWARM_KEY_FILE="$repo/swarm.key"
+  SWARM_KEY_PERM=0400
+
+  # Create a swarm key from a given environment variable
+  if [ ! -z "$IPFS_SWARM_KEY" ] ; then
+    echo "Copying swarm key from variable..."
+    echo -e "$IPFS_SWARM_KEY" >"$SWARM_KEY_FILE" || exit 1
+    chmod $SWARM_KEY_PERM "$SWARM_KEY_FILE"
+  fi
+
+  # Unset the swarm key variable
+  unset IPFS_SWARM_KEY
+
+  # Check during initialization if a swarm key was provided and
+  # copy it to the ipfs directory with the right permissions
+  # WARNING: This will replace the swarm key if it exists
+  if [ ! -z "$IPFS_SWARM_KEY_FILE" ] ; then
+    echo "Copying swarm key from file..."
+    install -m $SWARM_KEY_PERM "$IPFS_SWARM_KEY_FILE" "$SWARM_KEY_FILE" || exit 1
+  fi
+
+  # Unset the swarm key file variable
+  unset IPFS_SWARM_KEY_FILE
+
+  # Print config for debug purposes
+  ipfs config show
+
+fi
+
+exec ipfs "$@"
