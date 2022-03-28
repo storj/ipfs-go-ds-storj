@@ -6,9 +6,12 @@ import (
 	"context"
 	"strconv"
 
+	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+
 	"storj.io/private/dbutil"
+	_ "storj.io/private/dbutil/cockroachutil" // registers cockroach as a tagsql driver.
 	"storj.io/private/migrate"
 	"storj.io/private/tagsql"
 )
@@ -23,11 +26,12 @@ type DB struct {
 
 // Open creates instance of the database.
 func Open(ctx context.Context, databaseURL string) (*DB, error) {
-	var driverName string
-	_, _, impl, err := dbutil.SplitConnStr(driverName)
+	_, _, impl, err := dbutil.SplitConnStr(databaseURL)
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}
+
+	var driverName string
 	switch impl {
 	case dbutil.Postgres:
 		driverName = "pgx"
