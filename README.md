@@ -100,7 +100,7 @@ docker run --rm \
 	-e IPFS_GATEWAY_DOMAIN=<gateway_domain_name> \
 	-e IPFS_GATEWAY_USE_SUBDOMAINS=false \
 	-e STORJ_LOG_FILE=/app/log/output.log \
-	--mount type=bind,source=/tmp/log,destination=/app/log \
+	--mount type=bind,source=<log-dir>,destination=/app/log \
 	kaloyanraev/ipfs-go-ds-storj
 ```
 
