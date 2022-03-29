@@ -22,20 +22,26 @@ else
     *) INIT_ARGS="--profile=$IPFS_PROFILE" ;;
   esac
   ipfs init --empty-repo $INIT_ARGS
-  ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001
-  ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080
 
-  # Configuration for open or restricted gateway
+  # HTTP API port config
+  if [ -z $IPFS_API_PORT ]; then IPFS_API_PORT=5001; fi
+  ipfs config Addresses.API /ip4/0.0.0.0/tcp/$IPFS_API_PORT
+
+  # Gateway port config
+  if [ -z $IPFS_GATEWAY_PORT ]; then IPFS_GATEWAY_PORT=8080; fi
+  ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/$IPFS_GATEWAY_PORT
+
+  # Open or restricted gateway config
   if [ -z $IPFS_GATEWAY_NO_FETCH ]; then IPFS_GATEWAY_NO_FETCH=false; fi
   ipfs config --bool Gateway.NoFetch $IPFS_GATEWAY_NO_FETCH
 
-  # Configuration for gateway domain and subdomain usage
+  # Gateway domain and subdomain usage config
   if [ -z $IPFS_GATEWAY_USE_SUBDOMAINS ]; then IPFS_GATEWAY_USE_SUBDOMAINS=false; fi
   if [ ! -z $IPFS_GATEWAY_DOMAIN ]; then
     ipfs config --json Gateway.PublicGateways "{\"$IPFS_GATEWAY_DOMAIN\":{\"Paths\": [\"/ipfs\"],\"UseSubdomains\": $IPFS_GATEWAY_USE_SUBDOMAINS}}"
   fi
 
-  # Configuration for Storj datastore
+  # Storj datastore config
   ipfs config --json Datastore.Spec "{\"mounts\":[{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"$STORJ_LOG_FILE\"},\"mountpoint\": \"/blocks\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"datastore\",\"type\": \"levelds\"},\"mountpoint\": \"/\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
   echo -e "{\"mounts\":[{\"bucket\":\"$STORJ_BUCKET\",\"mountpoint\":\"/blocks\"},{\"mountpoint\":\"/\",\"path\":\"datastore\",\"type\":\"levelds\"}],\"type\":\"mount\"}" > $repo/datastore_spec
 

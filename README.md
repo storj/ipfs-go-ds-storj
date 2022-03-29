@@ -87,21 +87,19 @@ Otherwise, you need to do a datastore migration.
 ## Run With Docker
 
 ```
-docker run --rm \
-	--network host \
-	-p 4001:4001 \
-	-p 4001:4001/udp \
-	-p 5001:5001 \
-	-p 8080:8080 \
-	-e STORJ_DATABASE_URL=<database_url> \
-	-e STORJ_BUCKET=<storj_bucket> \
-	-e STORJ_ACCESS=<storj_access_grant> \
-	-e IPFS_GATEWAY_NO_FETCH=true \
-	-e IPFS_GATEWAY_DOMAIN=<gateway_domain_name> \
-	-e IPFS_GATEWAY_USE_SUBDOMAINS=false \
-	-e STORJ_LOG_FILE=/app/log/output.log \
-	--mount type=bind,source=<log-dir>,destination=/app/log \
-	kaloyanraev/ipfs-go-ds-storj
+docker run --rm -d \
+    --network host \
+    -e STORJ_DATABASE_URL=<database_url> \
+    -e STORJ_BUCKET=<storj_bucket> \
+    -e STORJ_ACCESS=<storj_access_grant> \
+    -e IPFS_GATEWAY_NO_FETCH=true \
+    -e IPFS_GATEWAY_DOMAIN=<gateway_domain_name> \
+    -e IPFS_GATEWAY_USE_SUBDOMAINS=false \
+    -e IPFS_GATEWAY_PORT=8080 \
+    -e IPFS_API_PORT=5001 \
+    -e STORJ_LOG_FILE=/app/log/output.log \
+    --mount type=bind,source=<log-dir>,destination=/app/log \
+    kaloyanraev/ipfs-go-ds-storj
 ```
 
 `STORJ_DATABASE_URL` can be set to a Postgres or CockroachDB database URL.
@@ -113,6 +111,10 @@ docker run --rm \
 `IPFS_GATEWAY_NO_FETCH` determines if the IPFS gateway is open (if set to false) or restricted (if set to true). Restricted gateways serve files only from the local IPFS node. Open gateways search the IPFS network if the file is not present on the local IPFS node.
 
 `IPFS_GATEWAY_DOMAIN` can be set to the domain name assigned to the IPFS gateway. If set, `IPFS_GATEWAY_USE_SUBDOMAINS` determines if to use subdomains resolution style. See https://docs.ipfs.io/concepts/ipfs-gateway/#subdomain for details.
+
+`IPFS_GATEWAY_PORT` can be set to change the IPFS Gateway port from the default 8080.
+
+`IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
 
 If `STORJ_LOG_FILE` is not set, the logs are printed to the standard output.
 
