@@ -84,6 +84,38 @@ If you are configuring a brand new ipfs instance without any data, you can overw
 
 Otherwise, you need to do a datastore migration.
 
+## Run With Docker
+
+```
+docker run --rm \
+	--network host \
+	-p 4001:4001 \
+	-p 4001:4001/udp \
+	-p 5001:5001 \
+	-p 8080:8080 \
+	-e STORJ_DATABASE_URL=<database_url> \
+	-e STORJ_BUCKET=<storj_bucket> \
+	-e STORJ_ACCESS=<storj_access_grant> \
+	-e IPFS_GATEWAY_NO_FETCH=true \
+	-e IPFS_GATEWAY_DOMAIN=<gateway_domain_name> \
+	-e IPFS_GATEWAY_USE_SUBDOMAINS=false \
+	-e STORJ_LOG_FILE=/app/log/output.log \
+	--mount type=bind,source=/tmp/log,destination=/app/log \
+	kaloyanraev/ipfs-go-ds-storj
+```
+
+`STORJ_DATABASE_URL` can be set to a Postgres or CockroachDB database URL.
+
+`STORJ_BUCKET` must be set to an existing bucket.
+
+`STORJ_ACCESS` must be set to an access grant with full permission to `STORJ_BUCKET`.
+
+`IPFS_GATEWAY_NO_FETCH` determines if the IPFS gateway is open (if set to false) or restricted (if set to true). Restricted gateways serve files only from the local IPFS node. Open gateways search the IPFS network if the file is not present on the local IPFS node.
+
+`IPFS_GATEWAY_DOMAIN` can be set to the domain name assigned to the IPFS gateway. If set, `IPFS_GATEWAY_USE_SUBDOMAINS` determines if to use subdomains resolution style. See https://docs.ipfs.io/concepts/ipfs-gateway/#subdomain for details.
+
+If `STORJ_LOG_FILE` is not set, the logs are printed to the standard output.
+
 ## License
 
 MIT

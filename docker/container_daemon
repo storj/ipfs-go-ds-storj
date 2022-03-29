@@ -25,11 +25,19 @@ else
   ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001
   ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080
 
-  # Storj-specific configuration
-  ipfs config --bool Gateway.NoFetch true
-  ipfs config --json Gateway.PublicGateways "{\"localhost:8080\":{\"NoDNSLink\": false,\"Paths\": [\"/ipfs\"],\"UseSubdomains\": false}}"
-  ipfs config --json Datastore.Spec "{\"mounts\":[{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"/tmp/ipfs.log\"},\"mountpoint\": \"/blocks\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"datastore\",\"type\": \"levelds\"},\"mountpoint\": \"/\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
-  echo -e "{\"mounts\":[{\"bucket\":\"ipfs\",\"mountpoint\":\"/blocks\"},{\"mountpoint\":\"/\",\"path\":\"datastore\",\"type\":\"levelds\"}],\"type\":\"mount\"}" > $repo/datastore_spec
+  # Configuration for open or restricted gateway
+  if [ -z $IPFS_GATEWAY_NO_FETCH ]; then IPFS_GATEWAY_NO_FETCH=false; fi
+  ipfs config --bool Gateway.NoFetch $IPFS_GATEWAY_NO_FETCH
+
+  # Configuration for gateway domain and subdomain usage
+  if [ -z $IPFS_GATEWAY_USE_SUBDOMAINS ]; then IPFS_GATEWAY_USE_SUBDOMAINS=false; fi
+  if [ ! -z $IPFS_GATEWAY_DOMAIN ]; then
+    ipfs config --json Gateway.PublicGateways "{\"$IPFS_GATEWAY_DOMAIN\":{\"Paths\": [\"/ipfs\"],\"UseSubdomains\": $IPFS_GATEWAY_USE_SUBDOMAINS}}"
+  fi
+
+  # Configuration for Storj datastore
+  ipfs config --json Datastore.Spec "{\"mounts\":[{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"$STORJ_LOG_FILE\"},\"mountpoint\": \"/blocks\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"datastore\",\"type\": \"levelds\"},\"mountpoint\": \"/\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
+  echo -e "{\"mounts\":[{\"bucket\":\"$STORJ_BUCKET\",\"mountpoint\":\"/blocks\"},{\"mountpoint\":\"/\",\"path\":\"datastore\",\"type\":\"levelds\"}],\"type\":\"mount\"}" > $repo/datastore_spec
 
   # Set up the swarm key, if provided
 
@@ -58,7 +66,9 @@ else
   unset IPFS_SWARM_KEY_FILE
 
   # Print config for debug purposes
-  ipfs config show
+  if [ $IPFS_SHOW_CONFIG == true ] ; then
+    ipfs config show
+  fi
 
 fi
 
