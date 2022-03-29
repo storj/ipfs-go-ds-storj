@@ -9,6 +9,7 @@ import (
 	dstest "github.com/ipfs/go-datastore/test"
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/testutil"
+
 	"storj.io/common/testcontext"
 	"storj.io/storj/private/testplanet"
 )
