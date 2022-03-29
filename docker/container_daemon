@@ -72,7 +72,8 @@ else
   unset IPFS_SWARM_KEY_FILE
 
   # Print config for debug purposes
-  if [ $IPFS_SHOW_CONFIG == true ] ; then
+  if [ -z $IPFS_SHOW_CONFIG ]; then IPFS_SHOW_CONFIG=false; fi
+  if [[ $IPFS_SHOW_CONFIG == "true" ]] ; then
     ipfs config show
   fi
 
