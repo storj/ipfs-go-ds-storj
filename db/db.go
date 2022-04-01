@@ -75,20 +75,14 @@ func (db *DB) Migration() *migrate.Migration {
 						pack_offset INTEGER NOT NULL DEFAULT 0,
 						pack_status INTEGER NOT NULL DEFAULT 0,
 						PRIMARY KEY ( cid )
-					)
-				`},
-			},
-			{
-				DB:          &db.DB,
-				Description: "Added datastore table for storing everything else but the blocks",
-				Version:     1,
-				Action: migrate.SQL{`
+					)`,
+					`
 					CREATE TABLE IF NOT EXISTS datastore (
 						key TEXT NOT NULL,
 						data BYTEA,
 						PRIMARY KEY ( key )
-					)
-				`},
+					)`,
+				},
 			},
 		},
 	}
