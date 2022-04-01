@@ -51,7 +51,8 @@ func Open(ctx context.Context, databaseURL string) (*DB, error) {
 
 // MigrateToLatest migrates pindb to the latest version.
 func (db *DB) MigrateToLatest(ctx context.Context) error {
-	return db.Migration().Run(ctx, zap.NewExample())
+	err := db.Migration().Run(ctx, zap.NewExample())
+	return Error.Wrap(err)
 }
 
 // Migration returns steps needed for migrating the database.
