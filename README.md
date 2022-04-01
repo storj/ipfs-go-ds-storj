@@ -58,7 +58,7 @@ The `config` file should include the following:
         {
           "child": {
             "type": "storjds",
-            "dbURI": "$postgresDBURI",
+            "dbURI": "$databaseURI",
             "bucket": "$bucketname",
             "accessGrant": "$accessGrant",
             "logFile": "$pathToLogFile"
@@ -68,7 +68,7 @@ The `config` file should include the following:
           "type": "measure"
         },
 ```
-`$postgresDBURI` is the URI to a PostgreSQL database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
+`$ ` is the URI to a Postgre or CockroachDB database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
 
 `$bucketname` is a bucket on Storj DCS. It must be created.
 
@@ -97,6 +97,7 @@ docker run --rm -d \
     -e IPFS_GATEWAY_USE_SUBDOMAINS=false \
     -e IPFS_GATEWAY_PORT=8080 \
     -e IPFS_API_PORT=5001 \
+    -e IPFS_BLOOM_FILTER_SIZE=1048576 \
     -e STORJ_LOG_FILE=/app/log/output.log \
     --mount type=bind,source=<log-dir>,destination=/app/log \
     kaloyanraev/ipfs-go-ds-storj
@@ -115,6 +116,8 @@ docker run --rm -d \
 `IPFS_GATEWAY_PORT` can be set to change the IPFS Gateway port from the default 8080.
 
 `IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
+
+`IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
 
 If `STORJ_LOG_FILE` is not set, the logs are printed to the standard output.
 
