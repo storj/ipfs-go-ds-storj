@@ -27,7 +27,7 @@ func TestPack(t *testing.T) {
 
 			var keys []ds.Key
 			for i := 0; i < 10; i++ {
-				keys = append(keys, ds.NewKey(fmt.Sprintf("block%d", i)))
+				keys = append(keys, ds.KeyWithNamespaces([]string{"blocks", fmt.Sprintf("block%d", i)}))
 			}
 
 			var blobs [][]byte
@@ -48,7 +48,7 @@ func TestPack(t *testing.T) {
 			var objectKey string
 
 			for i, key := range keys {
-				block, err := storj.GetBlock(ctx, key)
+				block, err := storj.GetBlock(ctx, key.BaseNamespace())
 				require.NoError(t, err, i)
 				if i < 8 {
 					assert.Equal(t, pack.Packed, pack.Status(block.PackStatus), i)

@@ -104,12 +104,24 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 		}
 	}()
 
-	result, err := storj.db.Exec(ctx, `
-		INSERT INTO blocks (cid, size, data)
-		VALUES ($1, $2, $3)
-		ON CONFLICT(cid)
-		DO UPDATE SET deleted = false
-	`, storjKey(key), len(value), value)
+	var result sql.Result
+	cid := cid(key)
+	if len(cid) > 0 {
+		result, err = storj.db.Exec(ctx, `
+			INSERT INTO blocks (cid, size, data)
+			VALUES ($1, $2, $3)
+			ON CONFLICT(cid)
+			DO UPDATE SET deleted = false
+		`, cid, len(value), value)
+	} else {
+		result, err = storj.db.Exec(ctx, `
+			INSERT INTO datastore (key, data)
+			VALUES ($1, $2)
+			ON CONFLICT(key)
+			DO UPDATE SET data = $2
+		`, key.String(), value)
+	}
+
 	if err != nil {
 		return Error.Wrap(err)
 	}
@@ -150,7 +162,21 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 		}
 	}()
 
-	block, err := storj.GetBlock(ctx, key)
+	cid := cid(key)
+	if len(cid) == 0 {
+		err := storj.db.QueryRow(ctx, `
+			SELECT data FROM datastore WHERE key = $1
+		`, key.String()).Scan(&data)
+		if err != nil {
+			if isNotFound(err) {
+				return nil, ds.ErrNotFound
+			}
+			return nil, Error.Wrap(err)
+		}
+		return data, nil
+	}
+
+	block, err := storj.GetBlock(ctx, cid)
 	if err != nil {
 		// do not wrap error to avoid wrapping ds.ErrNotFound
 		return nil, err
@@ -200,12 +226,27 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 		}
 	}()
 
+	cid := cid(key)
+	if len(cid) == 0 {
+		var exists bool
+		err = storj.db.QueryRow(ctx, `
+			SELECT exists(SELECT 1 FROM datastore WHERE key = $1)
+		`, key.String()).Scan(&exists)
+		if err != nil {
+			if isNotFound(err) {
+				return false, nil
+			}
+			return false, Error.Wrap(err)
+		}
+		return exists, nil
+	}
+
 	var deleted bool
 	err = storj.db.QueryRow(ctx, `
 		SELECT deleted
 		FROM blocks
 		WHERE cid = $1
-	`, storjKey(key)).Scan(
+	`, cid).Scan(
 		&deleted,
 	)
 	if err != nil {
@@ -229,12 +270,27 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 		}
 	}()
 
+	cid := cid(key)
+	if len(cid) == 0 {
+		var size int
+		err = storj.db.QueryRow(ctx, `
+			SELECT octet_length(data) FROM datastore WHERE key = $1
+		`, key.String()).Scan(&size)
+		if err != nil {
+			if isNotFound(err) {
+				return -1, ds.ErrNotFound
+			}
+			return -1, Error.Wrap(err)
+		}
+		return size, nil
+	}
+
 	var deleted bool
 	err = storj.db.QueryRow(ctx, `
 		SELECT size, deleted
 		FROM blocks
 		WHERE cid = $1
-	`, storjKey(key)).Scan(
+	`, cid).Scan(
 		&size, &deleted,
 	)
 	if err != nil {
@@ -261,6 +317,12 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 		}
 	}()
 
+	cid := cid(key)
+	if len(cid) == 0 {
+		_, err = storj.db.Exec(ctx, `DELETE FROM datastore WHERE key = $1`, key.String())
+		return Error.Wrap(err)
+	}
+
 	tx, err := storj.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Error.Wrap(err)
@@ -272,8 +334,6 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 		}
 		err = tx.Commit()
 	}()
-
-	cid := storjKey(key)
 
 	_, err = tx.Exec(ctx, `
 		DELETE FROM blocks
@@ -303,18 +363,123 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 		}
 	}()
 
+	if strings.HasPrefix(q.Prefix, "/blocks") {
+		return storj.queryBlocks(ctx, q)
+	}
+
+	return storj.queryDatastore(ctx, q)
+}
+
+func (storj *Datastore) queryDatastore(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
+	var sql string
+	if q.KeysOnly && q.ReturnsSizes {
+		sql = "SELECT key, octet_length(data) FROM datastore"
+	} else if q.KeysOnly {
+		sql = "SELECT key FROM datastore"
+	} else {
+		sql = "SELECT key, data FROM datastore"
+	}
+
+	if q.Prefix != "" {
+		// normalize
+		prefix := ds.NewKey(q.Prefix).String()
+		if prefix != "/" {
+			sql += fmt.Sprintf(` WHERE key LIKE '%s%%' ORDER BY key`, prefix+"/")
+		}
+	}
+
+	// only apply limit and offset if we do not have to naive filter/order the results
+	if len(q.Filters) == 0 && len(q.Orders) == 0 {
+		if q.Limit != 0 {
+			sql += fmt.Sprintf(" LIMIT %d", q.Limit)
+		}
+		if q.Offset != 0 {
+			sql += fmt.Sprintf(" OFFSET %d", q.Offset)
+		}
+	}
+
+	rows, err := storj.db.Query(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+
+	it := dsq.Iterator{
+		Next: func() (dsq.Result, bool) {
+			if !rows.Next() {
+				if rows.Err() != nil {
+					return dsq.Result{Error: rows.Err()}, false
+				}
+				return dsq.Result{}, false
+			}
+
+			var key string
+			var size int
+			var data []byte
+
+			if q.KeysOnly && q.ReturnsSizes {
+				err := rows.Scan(&key, &size)
+				if err != nil {
+					return dsq.Result{Error: err}, false
+				}
+				return dsq.Result{Entry: dsq.Entry{Key: key, Size: size}}, true
+			} else if q.KeysOnly {
+				err := rows.Scan(&key)
+				if err != nil {
+					return dsq.Result{Error: err}, false
+				}
+				return dsq.Result{Entry: dsq.Entry{Key: key}}, true
+			}
+
+			err := rows.Scan(&key, &data)
+			if err != nil {
+				return dsq.Result{Error: err}, false
+			}
+			entry := dsq.Entry{Key: key, Value: data}
+			if q.ReturnsSizes {
+				entry.Size = len(data)
+			}
+			return dsq.Result{Entry: entry}, true
+		},
+		Close: func() error {
+			rows.Close()
+			return nil
+		},
+	}
+
+	res := dsq.ResultsFromIterator(q, it)
+
+	for _, f := range q.Filters {
+		res = dsq.NaiveFilter(res, f)
+	}
+
+	res = dsq.NaiveOrder(res, q.Orders...)
+
+	// if we have filters or orders, offset and limit won't have been applied in the query
+	if len(q.Filters) > 0 || len(q.Orders) > 0 {
+		if q.Offset != 0 {
+			res = dsq.NaiveOffset(res, q.Offset)
+		}
+		if q.Limit != 0 {
+			res = dsq.NaiveLimit(res, q.Limit)
+		}
+	}
+
+	return res, nil
+}
+
+func (storj *Datastore) queryBlocks(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
 	// TODO: implement orders and filters
 	if q.Orders != nil || q.Filters != nil {
 		return nil, Error.New("filters or orders are not supported")
 	}
 
-	// Storj stores a "/foo" key as "foo" so we need to trim the leading "/"
-	q.Prefix = strings.TrimPrefix(q.Prefix, "/")
+	// Storj stores a "/blocks/foo" key as "foo" so we need to trim the leading "/blocks/"
+	q.Prefix = strings.TrimPrefix(q.Prefix, "/blocks/")
 
 	// TODO: optimize with prepared statements
 	query := "SELECT cid, size, data, pack_status, pack_object, pack_offset FROM blocks"
 	if len(q.Prefix) > 0 {
-		query += fmt.Sprintf(" WHERE key LIKE '%s%%' AND deleted = false ORDER BY key", q.Prefix)
+		query += fmt.Sprintf(" WHERE cid LIKE '%s%%' AND deleted = false ORDER BY cid", q.Prefix)
 	} else {
 		query += " WHERE deleted = false"
 	}
@@ -342,7 +507,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 			}
 
 			var (
-				key        string
+				cid        string
 				size       int
 				data       []byte
 				packStatus int
@@ -350,12 +515,12 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 				packOffset int
 			)
 
-			err := rows.Scan(&key, &size, &data, &packStatus, &packObject, &packOffset)
+			err := rows.Scan(&cid, &size, &data, &packStatus, &packObject, &packOffset)
 			if err != nil {
 				return dsq.Result{Error: Error.Wrap(err)}, false
 			}
 
-			entry := dsq.Entry{Key: "/" + key}
+			entry := dsq.Entry{Key: "/blocks/" + cid}
 
 			if !q.KeysOnly {
 				switch pack.Status(packStatus) {
@@ -420,9 +585,7 @@ type Block struct {
 	PackOffset int
 }
 
-func (storj *Datastore) GetBlock(ctx context.Context, key ds.Key) (*Block, error) {
-	cid := storjKey(key)
-
+func (storj *Datastore) GetBlock(ctx context.Context, cid string) (*Block, error) {
 	block := Block{
 		CID: cid,
 	}
@@ -447,8 +610,15 @@ func (storj *Datastore) GetBlock(ctx context.Context, key ds.Key) (*Block, error
 	return &block, nil
 }
 
-func storjKey(ipfsKey ds.Key) string {
-	return strings.TrimPrefix(ipfsKey.String(), "/")
+func cid(key ds.Key) string {
+	ns := key.Namespaces()
+	if len(ns) != 2 {
+		return ""
+	}
+	if ns[0] != "blocks" {
+		return ""
+	}
+	return ns[1]
 }
 
 func isNotFound(err error) bool {
