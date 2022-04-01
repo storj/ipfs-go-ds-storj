@@ -219,15 +219,15 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 }
 
 func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
-	// Commented because this method is invoked very often and it is noisy.
-	// storj.logger.Printf("GetSize requested for key %s\n", key)
-	// defer func() {
-	// 	if err == nil {
-	// 		storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
-	// 	} else {
-	// 		storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
-	// 	}
-	// }()
+	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
+	storj.logger.Printf("GetSize requested for key %s\n", key)
+	defer func() {
+		if err == nil {
+			storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
+		} else {
+			storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
+		}
+	}()
 
 	var deleted bool
 	err = storj.db.QueryRow(ctx, `
