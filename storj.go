@@ -5,9 +5,6 @@ package storjds
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -28,11 +25,14 @@ var Error = errs.Class("storjds")
 
 type Datastore struct {
 	Config
-	logFile *os.File
-	logger  *log.Logger
-	db      *db.DB
-	project *uplink.Project
-	packer  *pack.Chore
+	logFile    *os.File
+	logger     *log.Logger
+	database   *db.DB
+	project    *uplink.Project
+	datastore  *db.Datastore
+	blockstore *db.Blockstore
+	packstore  *pack.Store
+	packer     *Packer
 }
 
 type Config struct {
@@ -45,7 +45,7 @@ type Config struct {
 	MaxPackSize  int
 }
 
-func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, error) {
+func NewDatastore(ctx context.Context, conf Config, database *db.DB) (*Datastore, error) {
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
 	var logFile *os.File
 
@@ -70,13 +70,19 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		return nil, Error.New("failed to open Storj project: %s", err)
 	}
 
+	packstore := pack.NewStore(logger, project, conf.Bucket)
+	blockstore := db.NewBlockstore(database, packstore)
+
 	return &Datastore{
-		Config:  conf,
-		logFile: logFile,
-		logger:  logger,
-		db:      db,
-		project: project,
-		packer:  pack.NewChore(logger, db, project, conf.Bucket).WithInterval(conf.PackInterval).WithPackSize(conf.MinPackSize, conf.MaxPackSize),
+		Config:     conf,
+		logFile:    logFile,
+		logger:     logger,
+		database:   database,
+		project:    project,
+		datastore:  db.NewDatastore(database),
+		blockstore: blockstore,
+		packstore:  packstore,
+		packer:     NewPacker(logger, blockstore, packstore).WithInterval(conf.PackInterval).WithPackSize(conf.MinPackSize, conf.MaxPackSize),
 	}, nil
 }
 
@@ -90,8 +96,8 @@ func (storj *Datastore) WithPackSize(min, max int) *Datastore {
 	return storj
 }
 
-func (storj *Datastore) DB() *db.DB {
-	return storj.db
+func (storj *Datastore) Blockstore() *db.Blockstore {
+	return storj.blockstore
 }
 
 func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
@@ -104,37 +110,13 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 		}
 	}()
 
-	var result sql.Result
 	cid := cid(key)
-	if len(cid) > 0 {
-		result, err = storj.db.Exec(ctx, `
-			INSERT INTO blocks (cid, size, data)
-			VALUES ($1, $2, $3)
-			ON CONFLICT(cid)
-			DO UPDATE SET deleted = false
-		`, cid, len(value), value)
-	} else {
-		result, err = storj.db.Exec(ctx, `
-			INSERT INTO datastore (key, data)
-			VALUES ($1, $2)
-			ON CONFLICT(key)
-			DO UPDATE SET data = $2
-		`, key.String(), value)
+
+	if len(cid) == 0 {
+		return storj.datastore.Put(ctx, key, value)
 	}
 
-	if err != nil {
-		return Error.Wrap(err)
-	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return Error.Wrap(err)
-	}
-	if affected != 1 {
-		return Error.New("expected 1 row inserted in db, but did %d", affected)
-	}
-
-	return nil
+	return storj.blockstore.Put(ctx, cid, value)
 }
 
 func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
@@ -163,20 +145,12 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 	}()
 
 	cid := cid(key)
+
 	if len(cid) == 0 {
-		err := storj.db.QueryRow(ctx, `
-			SELECT data FROM datastore WHERE key = $1
-		`, key.String()).Scan(&data)
-		if err != nil {
-			if isNotFound(err) {
-				return nil, ds.ErrNotFound
-			}
-			return nil, Error.Wrap(err)
-		}
-		return data, nil
+		return storj.datastore.Get(ctx, key)
 	}
 
-	block, err := storj.GetBlock(ctx, cid)
+	block, err := storj.blockstore.Get(ctx, cid)
 	if err != nil {
 		// do not wrap error to avoid wrapping ds.ErrNotFound
 		return nil, err
@@ -227,36 +201,12 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 	}()
 
 	cid := cid(key)
+
 	if len(cid) == 0 {
-		var exists bool
-		err = storj.db.QueryRow(ctx, `
-			SELECT exists(SELECT 1 FROM datastore WHERE key = $1)
-		`, key.String()).Scan(&exists)
-		if err != nil {
-			if isNotFound(err) {
-				return false, nil
-			}
-			return false, Error.Wrap(err)
-		}
-		return exists, nil
+		return storj.datastore.Has(ctx, key)
 	}
 
-	var deleted bool
-	err = storj.db.QueryRow(ctx, `
-		SELECT deleted
-		FROM blocks
-		WHERE cid = $1
-	`, cid).Scan(
-		&deleted,
-	)
-	if err != nil {
-		if isNotFound(err) {
-			return false, nil
-		}
-		return false, Error.Wrap(err)
-	}
-
-	return !deleted, nil
+	return storj.blockstore.Has(ctx, cid)
 }
 
 func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
@@ -271,40 +221,12 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 	}()
 
 	cid := cid(key)
+
 	if len(cid) == 0 {
-		var size int
-		err = storj.db.QueryRow(ctx, `
-			SELECT octet_length(data) FROM datastore WHERE key = $1
-		`, key.String()).Scan(&size)
-		if err != nil {
-			if isNotFound(err) {
-				return -1, ds.ErrNotFound
-			}
-			return -1, Error.Wrap(err)
-		}
-		return size, nil
+		return storj.datastore.GetSize(ctx, key)
 	}
 
-	var deleted bool
-	err = storj.db.QueryRow(ctx, `
-		SELECT size, deleted
-		FROM blocks
-		WHERE cid = $1
-	`, cid).Scan(
-		&size, &deleted,
-	)
-	if err != nil {
-		if isNotFound(err) {
-			return -1, ds.ErrNotFound
-		}
-		return -1, Error.Wrap(err)
-	}
-
-	if deleted {
-		return -1, ds.ErrNotFound
-	}
-
-	return size, nil
+	return storj.blockstore.GetSize(ctx, cid)
 }
 
 func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
@@ -318,39 +240,12 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 	}()
 
 	cid := cid(key)
+
 	if len(cid) == 0 {
-		_, err = storj.db.Exec(ctx, `DELETE FROM datastore WHERE key = $1`, key.String())
-		return Error.Wrap(err)
+		return storj.datastore.Delete(ctx, key)
 	}
 
-	tx, err := storj.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Error.Wrap(err)
-	}
-	defer func() {
-		if err != nil {
-			err = errs.Combine(err, tx.Rollback())
-			return
-		}
-		err = tx.Commit()
-	}()
-
-	_, err = tx.Exec(ctx, `
-		DELETE FROM blocks
-		WHERE
-			cid = $1 AND
-			pack_status = 0;
-	`, cid)
-
-	_, err = tx.Exec(ctx, `
-		UPDATE blocks
-		SET deleted = true
-		WHERE
-			cid = $1 AND
-			pack_status > 0;
-	`, cid)
-
-	return Error.Wrap(err)
+	return storj.blockstore.Delete(ctx, cid)
 }
 
 func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
@@ -364,186 +259,10 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 	}()
 
 	if strings.HasPrefix(q.Prefix, "/blocks") {
-		return storj.queryBlocks(ctx, q)
+		return storj.blockstore.Query(ctx, q)
 	}
 
-	return storj.queryDatastore(ctx, q)
-}
-
-func (storj *Datastore) queryDatastore(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
-	var sql string
-	if q.KeysOnly && q.ReturnsSizes {
-		sql = "SELECT key, octet_length(data) FROM datastore"
-	} else if q.KeysOnly {
-		sql = "SELECT key FROM datastore"
-	} else {
-		sql = "SELECT key, data FROM datastore"
-	}
-
-	if q.Prefix != "" {
-		// normalize
-		prefix := ds.NewKey(q.Prefix).String()
-		if prefix != "/" {
-			sql += fmt.Sprintf(` WHERE key LIKE '%s%%' ORDER BY key`, prefix+"/")
-		}
-	}
-
-	// only apply limit and offset if we do not have to naive filter/order the results
-	if len(q.Filters) == 0 && len(q.Orders) == 0 {
-		if q.Limit != 0 {
-			sql += fmt.Sprintf(" LIMIT %d", q.Limit)
-		}
-		if q.Offset != 0 {
-			sql += fmt.Sprintf(" OFFSET %d", q.Offset)
-		}
-	}
-
-	rows, err := storj.db.Query(ctx, sql)
-	if err != nil {
-		return nil, err
-	}
-
-	it := dsq.Iterator{
-		Next: func() (dsq.Result, bool) {
-			if !rows.Next() {
-				if rows.Err() != nil {
-					return dsq.Result{Error: rows.Err()}, false
-				}
-				return dsq.Result{}, false
-			}
-
-			var key string
-			var size int
-			var data []byte
-
-			if q.KeysOnly && q.ReturnsSizes {
-				err := rows.Scan(&key, &size)
-				if err != nil {
-					return dsq.Result{Error: err}, false
-				}
-				return dsq.Result{Entry: dsq.Entry{Key: key, Size: size}}, true
-			} else if q.KeysOnly {
-				err := rows.Scan(&key)
-				if err != nil {
-					return dsq.Result{Error: err}, false
-				}
-				return dsq.Result{Entry: dsq.Entry{Key: key}}, true
-			}
-
-			err := rows.Scan(&key, &data)
-			if err != nil {
-				return dsq.Result{Error: err}, false
-			}
-			entry := dsq.Entry{Key: key, Value: data}
-			if q.ReturnsSizes {
-				entry.Size = len(data)
-			}
-			return dsq.Result{Entry: entry}, true
-		},
-		Close: func() error {
-			rows.Close()
-			return nil
-		},
-	}
-
-	res := dsq.ResultsFromIterator(q, it)
-
-	for _, f := range q.Filters {
-		res = dsq.NaiveFilter(res, f)
-	}
-
-	res = dsq.NaiveOrder(res, q.Orders...)
-
-	// if we have filters or orders, offset and limit won't have been applied in the query
-	if len(q.Filters) > 0 || len(q.Orders) > 0 {
-		if q.Offset != 0 {
-			res = dsq.NaiveOffset(res, q.Offset)
-		}
-		if q.Limit != 0 {
-			res = dsq.NaiveLimit(res, q.Limit)
-		}
-	}
-
-	return res, nil
-}
-
-func (storj *Datastore) queryBlocks(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
-	// TODO: implement orders and filters
-	if q.Orders != nil || q.Filters != nil {
-		return nil, Error.New("filters or orders are not supported")
-	}
-
-	// Storj stores a "/blocks/foo" key as "foo" so we need to trim the leading "/blocks/"
-	q.Prefix = strings.TrimPrefix(q.Prefix, "/blocks/")
-
-	// TODO: optimize with prepared statements
-	query := "SELECT cid, size, data, pack_status, pack_object, pack_offset FROM blocks"
-	if len(q.Prefix) > 0 {
-		query += fmt.Sprintf(" WHERE cid LIKE '%s%%' AND deleted = false ORDER BY cid", q.Prefix)
-	} else {
-		query += " WHERE deleted = false"
-	}
-	if q.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", q.Limit)
-	}
-	if q.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", q.Offset)
-	}
-
-	rows, err := storj.db.Query(ctx, query)
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	return dsq.ResultsFromIterator(q, dsq.Iterator{
-		Close: func() error {
-			storj.logger.Println("Query closed")
-			return nil
-		},
-		Next: func() (dsq.Result, bool) {
-			if !rows.Next() {
-				storj.logger.Println("Query completed")
-				return dsq.Result{}, false
-			}
-
-			var (
-				cid        string
-				size       int
-				data       []byte
-				packStatus int
-				packObject string
-				packOffset int
-			)
-
-			err := rows.Scan(&cid, &size, &data, &packStatus, &packObject, &packOffset)
-			if err != nil {
-				return dsq.Result{Error: Error.Wrap(err)}, false
-			}
-
-			entry := dsq.Entry{Key: "/blocks/" + cid}
-
-			if !q.KeysOnly {
-				switch pack.Status(packStatus) {
-				case pack.Unpacked, pack.Packing:
-					// TODO: optimize to not read this column from DB if keys only
-					entry.Value = data
-				case pack.Packed:
-					entry.Value, err = storj.readDataFromPack(ctx, packObject, packOffset, size)
-					if err != nil {
-						return dsq.Result{Error: Error.Wrap(err)}, false
-					}
-				default:
-					return dsq.Result{Error: Error.New("unknown pack status: %d", packStatus)}, false
-				}
-			}
-			if q.ReturnsSizes {
-				// TODO: optimize to not read this column from DB
-				entry.Size = size
-			}
-
-			return dsq.Result{Entry: entry}, true
-		},
-	}), nil
+	return storj.datastore.Query(ctx, q)
 }
 
 func (storj *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
@@ -565,7 +284,7 @@ func (storj *Datastore) Close() error {
 	err := errs.Combine(
 		storj.packer.Close(),
 		storj.project.Close(),
-		storj.db.Close(),
+		storj.database.Close(),
 	)
 
 	if storj.logFile != nil {
@@ -573,41 +292,6 @@ func (storj *Datastore) Close() error {
 	}
 
 	return Error.Wrap(err)
-}
-
-type Block struct {
-	CID        string
-	Size       int
-	Data       []byte
-	Deleted    bool
-	PackStatus int
-	PackObject string
-	PackOffset int
-}
-
-func (storj *Datastore) GetBlock(ctx context.Context, cid string) (*Block, error) {
-	block := Block{
-		CID: cid,
-	}
-
-	err := storj.db.QueryRow(ctx, `
-		SELECT
-			size, data, deleted,
-			pack_status, pack_object, pack_offset
-		FROM blocks
-		WHERE cid = $1
-	`, cid).Scan(
-		&block.Size, &block.Data, &block.Deleted,
-		&block.PackStatus, &block.PackObject, &block.PackOffset,
-	)
-	if err != nil {
-		if isNotFound(err) {
-			return nil, ds.ErrNotFound
-		}
-		return nil, Error.Wrap(err)
-	}
-
-	return &block, nil
 }
 
 func cid(key ds.Key) string {
@@ -619,10 +303,6 @@ func cid(key ds.Key) string {
 		return ""
 	}
 	return ns[1]
-}
-
-func isNotFound(err error) bool {
-	return errors.Is(err, sql.ErrNoRows)
 }
 
 type storjBatch struct {

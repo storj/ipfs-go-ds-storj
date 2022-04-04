@@ -15,6 +15,10 @@ import (
 )
 
 func TestIPFSSuite(t *testing.T) {
+	// testutil.RunTest(t, "all tests",
+	// 	func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+	// 		dstest.SubtestAll(t, storj)
+	// 	})
 	testutil.RunTest(t, "basic operations",
 		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 			dstest.SubtestBasicPutGet(t, storj)
@@ -23,13 +27,33 @@ func TestIPFSSuite(t *testing.T) {
 		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 			dstest.SubtestNotFounds(t, storj)
 		})
+	testutil.RunTest(t, "query prefix",
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+			dstest.SubtestPrefix(t, storj)
+		})
+	testutil.RunTest(t, "query order",
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+			dstest.SubtestOrder(t, storj)
+		})
+	testutil.RunTest(t, "quert limit",
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+			dstest.SubtestLimit(t, storj)
+		})
+	testutil.RunTest(t, "query filter",
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+			dstest.SubtestFilter(t, storj)
+		})
 	testutil.RunTest(t, "many puts and gets, query",
 		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 			dstest.SubtestManyKeysAndQuery(t, storj)
 		})
-	testutil.RunTest(t, "return sizes",
+	testutil.RunTest(t, "query return sizes",
 		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 			dstest.SubtestReturnSizes(t, storj)
+		})
+	testutil.RunTest(t, "basic sync",
+		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
+			dstest.SubtestBasicSync(t, storj)
 		})
 	testutil.RunTest(t, "batch",
 		func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {

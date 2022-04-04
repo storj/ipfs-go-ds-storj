@@ -4,6 +4,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strconv"
 
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
@@ -147,4 +149,8 @@ func (pq postgresRebind) Rebind(sql string) string {
 	}
 
 	return string(out)
+}
+
+func isNotFound(err error) bool {
+	return errors.Is(err, sql.ErrNoRows)
 }

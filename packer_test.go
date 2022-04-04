@@ -1,7 +1,7 @@
 // Copyright (C) 2021 Storj Labs, Inc.
 // See LICENSE for copying information.
 
-package pack_test
+package storjds_test
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ func TestPack(t *testing.T) {
 			var objectKey string
 
 			for i, key := range keys {
-				block, err := storj.GetBlock(ctx, key.BaseNamespace())
+				block, err := storj.Blockstore().Get(ctx, key.BaseNamespace())
 				require.NoError(t, err, i)
 				if i < 8 {
 					assert.Equal(t, pack.Packed, pack.Status(block.PackStatus), i)
