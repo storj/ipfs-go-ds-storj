@@ -175,7 +175,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[stri
 		return nil, Error.Wrap(err)
 	}
 
-	// chore.logger.Printf("queryNextPack: affected %d rows", affected)
+	db.logger.Printf("QueryNextPack: affected %d rows", affected)
 
 	if affected == 0 {
 		return nil, nil
@@ -245,7 +245,7 @@ func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidO
 			return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
 
-		// chore.logger.Printf("Pack: updated block %s status as packed at offset %d", cid, off)
+		db.logger.Printf("UpdatePackedBlocks: updated block %s status as packed at offset %d", cid, off)
 	}
 
 	return nil

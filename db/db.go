@@ -6,9 +6,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"strconv"
 
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/logger"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
@@ -24,6 +26,7 @@ var Error = errs.Class("db")
 // DB is the datastore database for mapping IPFS blocks to Storj object packs.
 type DB struct {
 	tagsql.DB
+	logger *log.Logger
 }
 
 // Open creates instance of the database.
@@ -92,7 +95,14 @@ func (db *DB) Migration() *migrate.Migration {
 
 // Wrap turns a tagsql.DB into a DB struct.
 func Wrap(db tagsql.DB) *DB {
-	return &DB{DB: postgresRebind{DB: db}}
+	return &DB{
+		DB:     postgresRebind{DB: db},
+		logger: logger.Default,
+	}
+}
+
+func (db *DB) WithLogger(logger *log.Logger) {
+	db.logger = logger
 }
 
 // This is needed for migrate to work.

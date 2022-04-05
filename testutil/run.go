@@ -4,13 +4,13 @@
 package testutil
 
 import (
-	"log"
 	"os"
 	"testing"
 
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/block"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/logger"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
@@ -113,9 +113,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		require.NoError(t, err)
 		defer project.Close()
 
-		logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
-
-		blocks := block.NewStore("/", logger, db, pack.NewStore(logger, project, bucket))
+		blocks := block.NewStore("/", logger.Default, db, pack.NewStore(logger.Default, project, bucket))
 
 		f(t, blocks)
 	})

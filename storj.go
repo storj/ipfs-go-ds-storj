@@ -14,6 +14,7 @@ import (
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/block"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/logger"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 
@@ -43,7 +44,7 @@ type Config struct {
 }
 
 func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, error) {
-	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds) // default stdout logger
+	logger := logger.Default
 	var logFile *os.File
 
 	if len(conf.LogFile) > 0 {
