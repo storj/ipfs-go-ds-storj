@@ -101,8 +101,9 @@ func Wrap(db tagsql.DB) *DB {
 	}
 }
 
-func (db *DB) WithLogger(logger *log.Logger) {
+func (db *DB) WithLogger(logger *log.Logger) *DB {
 	db.logger = logger
+	return db
 }
 
 // This is needed for migrate to work.

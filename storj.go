@@ -77,7 +77,7 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		Config:  conf,
 		logFile: logFile,
 		logger:  logger,
-		db:      db,
+		db:      db.WithLogger(logger),
 		project: project,
 		blocks:  blocks,
 	}, nil
