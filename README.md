@@ -96,6 +96,7 @@ docker run --rm -d \
     -e IPFS_API_PORT=5001 \
     -e IPFS_BLOOM_FILTER_SIZE=1048576 \
     -e STORJ_LOG_FILE=/app/log/output.log \
+    -e STORJ_PACK_INTERVAL=5m \
     --mount type=bind,source=<log-dir>,destination=/app/log \
     kaloyanraev/ipfs-go-ds-storj
 ```
@@ -117,6 +118,8 @@ docker run --rm -d \
 `IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
 
 If `STORJ_LOG_FILE` is not set, the logs are printed to the standard output.
+
+`STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
 ## License
 

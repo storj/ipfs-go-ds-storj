@@ -46,7 +46,7 @@ func NewChore(logger *log.Logger, db *db.DB, packs *Store) *Chore {
 
 func (chore *Chore) WithInterval(interval time.Duration) *Chore {
 	chore.interval = interval
-	if interval <= 0 {
+	if interval == 0 {
 		chore.interval = DefaultInterval
 	}
 	return chore
@@ -64,7 +64,14 @@ func (chore *Chore) WithPackSize(min, max int) *Chore {
 
 func (chore *Chore) Run(ctx context.Context) {
 	chore.runOnce.Do(func() {
+		// Don't run if the pack interval is negative.
+		if chore.interval < 0 {
+			chore.logger.Println("Packing disabled")
+			return
+		}
+
 		chore.loop = sync2.NewCycle(chore.interval)
+
 		go func() {
 			err := chore.loop.Run(ctx, chore.pack)
 			chore.logger.Printf("Pack error: %v\n", err)
