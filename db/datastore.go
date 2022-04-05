@@ -10,15 +10,7 @@ import (
 	dsq "github.com/ipfs/go-datastore/query"
 )
 
-type Datastore struct {
-	*DB
-}
-
-func NewDatastore(db *DB) *Datastore {
-	return &Datastore{DB: db}
-}
-
-func (db *Datastore) Put(ctx context.Context, key ds.Key, value []byte) error {
+func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) error {
 	result, err := db.Exec(ctx, `
 		INSERT INTO datastore (key, data)
 		VALUES ($1, $2)
@@ -40,7 +32,7 @@ func (db *Datastore) Put(ctx context.Context, key ds.Key, value []byte) error {
 	return nil
 }
 
-func (db *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
+func (db *DB) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT data
 		FROM datastore
@@ -55,7 +47,7 @@ func (db *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err erro
 	return data, nil
 }
 
-func (db *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
+func (db *DB) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT exists(
 			SELECT 1
@@ -72,7 +64,7 @@ func (db *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err erro
 	return exists, nil
 }
 
-func (db *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
+func (db *DB) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	err = db.QueryRow(ctx, `
 		SELECT octet_length(data)
 		FROM datastore
@@ -87,7 +79,7 @@ func (db *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err err
 	return size, nil
 }
 
-func (db *Datastore) Delete(ctx context.Context, key ds.Key) error {
+func (db *DB) Delete(ctx context.Context, key ds.Key) error {
 	_, err := db.Exec(ctx, `
 		DELETE FROM datastore
 		WHERE key = $1
@@ -95,7 +87,7 @@ func (db *Datastore) Delete(ctx context.Context, key ds.Key) error {
 	return Error.Wrap(err)
 }
 
-func (db *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
+func (db *DB) QueryDatastore(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
 	var sql string
 	if q.KeysOnly && q.ReturnsSizes {
 		sql = "SELECT key, octet_length(data) FROM datastore"
@@ -123,7 +115,7 @@ func (db *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results
 		}
 	}
 
-	rows, err := db.DB.Query(ctx, sql)
+	rows, err := db.Query(ctx, sql)
 	if err != nil {
 		return nil, err
 	}

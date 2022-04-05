@@ -4,12 +4,8 @@ package db
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	ds "github.com/ipfs/go-datastore"
-	dsq "github.com/ipfs/go-datastore/query"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 )
 
@@ -29,19 +25,7 @@ type Block struct {
 	PackOffset int
 }
 
-type Blockstore struct {
-	*DB
-	packs *pack.Store
-}
-
-func NewBlockstore(db *DB, packs *pack.Store) *Blockstore {
-	return &Blockstore{
-		DB:    db,
-		packs: packs,
-	}
-}
-
-func (db *Blockstore) Put(ctx context.Context, cid string, value []byte) error {
+func (db *DB) PutBlock(ctx context.Context, cid string, value []byte) error {
 	result, err := db.Exec(ctx, `
 		INSERT INTO blocks (cid, size, data)
 		VALUES ($1, $2, $3)
@@ -63,7 +47,7 @@ func (db *Blockstore) Put(ctx context.Context, cid string, value []byte) error {
 	return nil
 }
 
-func (db *Blockstore) Get(ctx context.Context, cid string) (*Block, error) {
+func (db *DB) GetBlock(ctx context.Context, cid string) (*Block, error) {
 	block := Block{
 		CID: cid,
 	}
@@ -74,7 +58,7 @@ func (db *Blockstore) Get(ctx context.Context, cid string) (*Block, error) {
 			pack_status, pack_object, pack_offset
 		FROM blocks
 		WHERE cid = $1
-	`, cid).Scan(
+	`, block.CID).Scan(
 		&block.Size, &block.Data, &block.Deleted,
 		&block.PackStatus, &block.PackObject, &block.PackOffset,
 	)
@@ -85,10 +69,14 @@ func (db *Blockstore) Get(ctx context.Context, cid string) (*Block, error) {
 		return nil, Error.Wrap(err)
 	}
 
+	if block.Deleted {
+		return nil, ds.ErrNotFound
+	}
+
 	return &block, nil
 }
 
-func (db *Blockstore) Has(ctx context.Context, cid string) (exists bool, err error) {
+func (db *DB) HasBlock(ctx context.Context, cid string) (exists bool, err error) {
 	var deleted bool
 	err = db.QueryRow(ctx, `
 		SELECT deleted
@@ -107,7 +95,7 @@ func (db *Blockstore) Has(ctx context.Context, cid string) (exists bool, err err
 	return !deleted, nil
 }
 
-func (db *Blockstore) GetSize(ctx context.Context, cid string) (size int, err error) {
+func (db *DB) GetBlockSize(ctx context.Context, cid string) (size int, err error) {
 	var deleted bool
 	err = db.QueryRow(ctx, `
 		SELECT size, deleted
@@ -130,7 +118,7 @@ func (db *Blockstore) GetSize(ctx context.Context, cid string) (size int, err er
 	return size, nil
 }
 
-func (db *Blockstore) Delete(ctx context.Context, cid string) (err error) {
+func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Error.Wrap(err)
@@ -161,84 +149,7 @@ func (db *Blockstore) Delete(ctx context.Context, cid string) (err error) {
 	return Error.Wrap(err)
 }
 
-func (db *Blockstore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
-	// TODO: implement orders and filters
-	if q.Orders != nil || q.Filters != nil {
-		return nil, Error.New("filters or orders are not supported")
-	}
-
-	// Storj stores a "/blocks/foo" key as "foo" so we need to trim the leading "/blocks/"
-	q.Prefix = strings.TrimPrefix(q.Prefix, "/blocks/")
-
-	// TODO: optimize with prepared statements
-	query := "SELECT cid, size, data, pack_status, pack_object, pack_offset FROM blocks"
-	if len(q.Prefix) > 0 {
-		query += fmt.Sprintf(" WHERE cid LIKE '%s%%' AND deleted = false ORDER BY cid", q.Prefix)
-	} else {
-		query += " WHERE deleted = false"
-	}
-	if q.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", q.Limit)
-	}
-	if q.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", q.Offset)
-	}
-
-	rows, err := db.DB.Query(ctx, query)
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	return dsq.ResultsFromIterator(q, dsq.Iterator{
-		Close: func() error {
-			return nil
-		},
-		Next: func() (dsq.Result, bool) {
-			if !rows.Next() {
-				return dsq.Result{}, false
-			}
-
-			var (
-				cid        string
-				size       int
-				data       []byte
-				packStatus int
-				packObject string
-				packOffset int
-			)
-
-			err := rows.Scan(&cid, &size, &data, &packStatus, &packObject, &packOffset)
-			if err != nil {
-				return dsq.Result{Error: Error.Wrap(err)}, false
-			}
-
-			entry := dsq.Entry{Key: "/blocks/" + cid}
-
-			if !q.KeysOnly {
-				switch pack.Status(packStatus) {
-				case pack.Unpacked, pack.Packing:
-					// TODO: optimize to not read this column from DB if keys only
-					entry.Value = data
-				case pack.Packed:
-					entry.Value, err = db.packs.ReadBlock(ctx, packObject, packOffset, size)
-					if err != nil {
-						return dsq.Result{Error: Error.Wrap(err)}, false
-					}
-				default:
-					return dsq.Result{Error: Error.New("unknown pack status: %d", packStatus)}, false
-				}
-			}
-			if q.ReturnsSizes {
-				// TODO: optimize to not read this column from DB
-				entry.Size = size
-			}
-
-			return dsq.Result{Entry: entry}, true
-		},
-	}), nil
-}
-
-func (db *Blockstore) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[string][]byte, error) {
+func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[string][]byte, error) {
 	result, err := db.Exec(ctx, `
 		WITH next_pack AS (
 			SELECT b.cid, sum(b2.size) AS sums
@@ -297,7 +208,7 @@ func (db *Blockstore) QueryNextPack(ctx context.Context, minSize, maxSize int) (
 	return blocks, nil
 }
 
-func (db *Blockstore) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
+func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Error.Wrap(err)

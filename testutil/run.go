@@ -4,11 +4,14 @@
 package testutil
 
 import (
+	"log"
 	"os"
 	"testing"
 
 	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/block"
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
+	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
 
@@ -16,9 +19,10 @@ import (
 	"storj.io/private/dbutil"
 	"storj.io/private/dbutil/tempdb"
 	"storj.io/storj/private/testplanet"
+	"storj.io/uplink"
 )
 
-func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore)) {
+func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore)) {
 	testplanet.Run(t, testplanet.Config{
 		SatelliteCount:   1,
 		StorageNodeCount: 4,
@@ -65,6 +69,53 @@ func RunTest(t *testing.T, name string, f func(t *testing.T, ctx *testcontext.Co
 		require.NoError(t, err)
 
 		f(t, ctx, planet, storj)
+	})
+}
+
+func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) {
+	testplanet.Run(t, testplanet.Config{
+		SatelliteCount:   1,
+		StorageNodeCount: 4,
+		UplinkCount:      1,
+	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+		var storj *storjds.Datastore
+		var tempDB *dbutil.TempDatabase
+		defer func() {
+			var err1, err2 error
+			if tempDB != nil {
+				err1 = tempDB.Close()
+			}
+			if storj != nil {
+				storj.Close()
+			}
+			require.NoError(t, errs.Combine(err1, err2))
+		}()
+
+		sat := planet.Satellites[0]
+		uplnk := planet.Uplinks[0]
+		bucket := "testbucket"
+
+		dbURI, err := dbURI(sat.Metabase.DB.Implementation())
+		require.NoError(t, err)
+
+		tempDB, err = tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
+		require.NoError(t, err)
+
+		db := db.Wrap(tempDB.DB)
+
+		err = db.MigrateToLatest(ctx)
+		require.NoError(t, err)
+
+		err = uplnk.CreateBucket(ctx, sat, bucket)
+		require.NoError(t, err)
+
+		project, err := uplink.OpenProject(ctx, uplnk.Access[sat.ID()])
+		require.NoError(t, err)
+		defer project.Close()
+
+		blocks := block.NewStore("/", db, pack.NewStore(log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds), project, bucket))
+
+		f(t, blocks)
 	})
 }
 
