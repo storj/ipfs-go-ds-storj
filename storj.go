@@ -56,6 +56,8 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		logger = log.New(logFile, "", log.LstdFlags|log.Lmicroseconds)
 	}
 
+	db = db.WithLogger(logger)
+
 	logger.Println("NewStorjDatastore")
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
@@ -77,7 +79,7 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		Config:  conf,
 		logFile: logFile,
 		logger:  logger,
-		db:      db.WithLogger(logger),
+		db:      db,
 		project: project,
 		blocks:  blocks,
 	}, nil
