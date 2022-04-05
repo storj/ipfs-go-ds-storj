@@ -5,7 +5,9 @@ package block
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
@@ -18,17 +20,43 @@ import (
 var Error = errs.Class("block")
 
 type Store struct {
-	mount string
-	db    *db.DB
-	packs *pack.Store
+	mount  string
+	db     *db.DB
+	packs  *pack.Store
+	packer *pack.Chore
 }
 
-func NewStore(mount string, db *db.DB, packs *pack.Store) *Store {
+func NewStore(mount string, logger *log.Logger, db *db.DB, packs *pack.Store) *Store {
 	return &Store{
-		mount: mount,
-		db:    db,
-		packs: packs,
+		mount:  mount,
+		db:     db,
+		packs:  packs,
+		packer: pack.NewChore(logger, db, packs),
 	}
+}
+
+func (storj *Store) WithPackInterval(interval time.Duration) *Store {
+	storj.packer.WithInterval(interval)
+	return storj
+}
+
+func (storj *Store) WithPackSize(min, max int) *Store {
+	storj.packer.WithPackSize(min, max)
+	return storj
+}
+
+func (storj *Store) TriggerWaitPacker() {
+	storj.packer.TriggerWait()
+}
+
+func (store *Store) Close() error {
+	return store.packer.Close()
+}
+
+func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
+	store.packer.Run(ctx)
+
+	return nil
 }
 
 func (store *Store) Put(ctx context.Context, key ds.Key, value []byte) error {
@@ -178,14 +206,6 @@ func (store *Store) Query(ctx context.Context, q dsq.Query) (result dsq.Results,
 	}
 
 	return res, nil
-}
-
-func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	return nil
-}
-
-func (store *Store) Close() error {
-	return nil
 }
 
 func (store *Store) cid(key ds.Key) string {

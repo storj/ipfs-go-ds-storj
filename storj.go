@@ -30,7 +30,6 @@ type Datastore struct {
 	db      *db.DB
 	project *uplink.Project
 	blocks  *block.Store
-	packer  *pack.Chore
 }
 
 type Config struct {
@@ -69,7 +68,9 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 	}
 
 	packs := pack.NewStore(logger, project, conf.Bucket)
-	blocks := block.NewStore("/blocks", db, packs)
+	blocks := block.NewStore("/blocks", logger, db, packs).
+		WithPackInterval(conf.PackInterval).
+		WithPackSize(conf.MinPackSize, conf.MaxPackSize)
 
 	return &Datastore{
 		Config:  conf,
@@ -78,18 +79,21 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		db:      db,
 		project: project,
 		blocks:  blocks,
-		packer:  pack.NewChore(logger, db, packs).WithInterval(conf.PackInterval).WithPackSize(conf.MinPackSize, conf.MaxPackSize),
 	}, nil
 }
 
-func (storj *Datastore) WithInterval(interval time.Duration) *Datastore {
-	storj.packer.WithInterval(interval)
+func (storj *Datastore) WithPackInterval(interval time.Duration) *Datastore {
+	storj.blocks.WithPackInterval(interval)
 	return storj
 }
 
 func (storj *Datastore) WithPackSize(min, max int) *Datastore {
-	storj.packer.WithPackSize(min, max)
+	storj.blocks.WithPackSize(min, max)
 	return storj
+}
+
+func (storj *Datastore) TriggerWaitPacker() {
+	storj.blocks.TriggerWaitPacker()
 }
 
 func (storj *Datastore) DB() *db.DB {
@@ -127,7 +131,9 @@ func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
 		}
 	}()
 
-	storj.packer.Run(ctx)
+	if prefix.String() == "/" || isBlockKey(prefix) {
+		return storj.blocks.Sync(ctx, trimFirstNamespace(prefix))
+	}
 
 	return nil
 }
@@ -168,14 +174,14 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 
 func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
-	storj.logger.Printf("GetSize requested for key %s\n", key)
-	defer func() {
-		if err == nil {
-			storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
-		} else {
-			storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
-		}
-	}()
+	// storj.logger.Printf("GetSize requested for key %s\n", key)
+	// defer func() {
+	// 	if err == nil {
+	// 		storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
+	// 	} else {
+	// 		storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
+	// 	}
+	// }()
 
 	if isBlockKey(key) {
 		return storj.blocks.GetSize(ctx, trimFirstNamespace(key))
@@ -227,15 +233,10 @@ func (storj *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
 	}, nil
 }
 
-func (storj *Datastore) TriggerWaitPacker() {
-	storj.packer.TriggerWait()
-}
-
 func (storj *Datastore) Close() error {
 	storj.logger.Println("Close")
 
 	err := errs.Combine(
-		storj.packer.Close(),
 		storj.project.Close(),
 		storj.blocks.Close(),
 		storj.db.Close(),
@@ -250,7 +251,7 @@ func (storj *Datastore) Close() error {
 
 func isBlockKey(key ds.Key) bool {
 	ns := key.Namespaces()
-	if len(ns) < 2 {
+	if len(ns) < 1 {
 		return false
 	}
 	return ns[0] == "blocks"
@@ -258,7 +259,7 @@ func isBlockKey(key ds.Key) bool {
 
 func trimFirstNamespace(key ds.Key) ds.Key {
 	ns := key.Namespaces()
-	if len(ns) < 2 {
+	if len(ns) < 1 {
 		return key
 	}
 	return ds.KeyWithNamespaces(ns[1:])

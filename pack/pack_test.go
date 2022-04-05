@@ -39,7 +39,7 @@ func TestPack(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		err := storj.Sync(ctx, ds.Key{})
+		err := storj.Sync(ctx, ds.NewKey(""))
 		require.NoError(t, err)
 
 		storj.TriggerWaitPacker()

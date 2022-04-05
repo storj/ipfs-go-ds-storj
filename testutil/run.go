@@ -113,7 +113,9 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		require.NoError(t, err)
 		defer project.Close()
 
-		blocks := block.NewStore("/", db, pack.NewStore(log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds), project, bucket))
+		logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+		blocks := block.NewStore("/", logger, db, pack.NewStore(logger, project, bucket))
 
 		f(t, blocks)
 	})
