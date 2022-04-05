@@ -46,8 +46,8 @@ else
   fi
 
   # Storj datastore config
-  ipfs config --json Datastore.Spec "{\"mounts\":[{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"$STORJ_LOG_FILE\"},\"mountpoint\": \"/blocks\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"datastore\",\"type\": \"levelds\"},\"mountpoint\": \"/\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
-  echo -e "{\"mounts\":[{\"bucket\":\"$STORJ_BUCKET\",\"mountpoint\":\"/blocks\"},{\"mountpoint\":\"/\",\"path\":\"datastore\",\"type\":\"levelds\"}],\"type\":\"mount\"}" > $repo/datastore_spec
+  ipfs config --json Datastore.Spec "{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\",\"logFile\": \"$STORJ_LOG_FILE\"},\"prefix\": \"storj.datastore\",\"type\": \"measure\"}"
+  echo -e "{\"bucket\":\"$STORJ_BUCKET\"}" > $repo/datastore_spec
 
   # Set up the swarm key, if provided
 

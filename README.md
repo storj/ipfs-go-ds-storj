@@ -52,21 +52,18 @@ The `config` file should include the following:
 {
   "Datastore": {
   ...
-
     "Spec": {
-      "mounts": [
-        {
-          "child": {
-            "type": "storjds",
-            "dbURI": "$databaseURI",
-            "bucket": "$bucketname",
-            "accessGrant": "$accessGrant",
-            "logFile": "$pathToLogFile"
-          },
-          "mountpoint": "/blocks",
-          "prefix": "storj.datastore",
-          "type": "measure"
-        },
+      "child": {
+        "type": "storjds",
+        "dbURI": "$databaseURI",
+        "bucket": "$bucketname",
+        "accessGrant": "$accessGrant",
+        "logFile": "$pathToLogFile"
+      },
+      "prefix": "storj.datastore",
+      "type": "measure"
+    }
+  ...
 ```
 `$ ` is the URI to a Postgre or CockroachDB database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
 
@@ -79,7 +76,7 @@ The `logFile` config is optional. If set, it enables logging for this plugin.
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
 ```json
-{"mounts":[{"bucket":"$bucketname","mountpoint":"/blocks"},{"mountpoint":"/","path":"datastore","type":"levelds"}],"type":"mount"}
+{"bucket":"$bucketname"}
 ```
 
 Otherwise, you need to do a datastore migration.
