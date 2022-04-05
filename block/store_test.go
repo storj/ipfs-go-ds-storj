@@ -11,7 +11,7 @@ import (
 	"github.com/kaloyan-raev/ipfs-go-ds-storj/testutil"
 )
 
-func TestIPFSSuite(t *testing.T) {
+func TestIPFSSuite_Blockstore(t *testing.T) {
 	testutil.RunBlockstoreTest(t, func(t *testing.T, blocks *block.Store) {
 		t.Run("basic operations", func(t *testing.T) {
 			dstest.SubtestBasicPutGet(t, blocks)

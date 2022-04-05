@@ -78,19 +78,6 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		StorageNodeCount: 4,
 		UplinkCount:      1,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
-		var storj *storjds.Datastore
-		var tempDB *dbutil.TempDatabase
-		defer func() {
-			var err1, err2 error
-			if tempDB != nil {
-				err1 = tempDB.Close()
-			}
-			if storj != nil {
-				storj.Close()
-			}
-			require.NoError(t, errs.Combine(err1, err2))
-		}()
-
 		sat := planet.Satellites[0]
 		uplnk := planet.Uplinks[0]
 		bucket := "testbucket"
@@ -98,8 +85,9 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		dbURI, err := dbURI(sat.Metabase.DB.Implementation())
 		require.NoError(t, err)
 
-		tempDB, err = tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
+		tempDB, err := tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
 		require.NoError(t, err)
+		defer tempDB.Close()
 
 		db := db.Wrap(tempDB.DB)
 
@@ -114,6 +102,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		defer project.Close()
 
 		blocks := block.NewStore("/", logger.Default, db, pack.NewStore(logger.Default, project, bucket))
+		defer blocks.Close()
 
 		f(t, blocks)
 	})
