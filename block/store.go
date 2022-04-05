@@ -54,7 +54,8 @@ func (store *Store) Close() error {
 }
 
 func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	store.packer.Run(ctx)
+	// Run the packer in a separate context to avoid canceling it prematurely.
+	store.packer.Run(context.Background())
 
 	return nil
 }
