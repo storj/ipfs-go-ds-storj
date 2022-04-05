@@ -13,7 +13,7 @@ import (
 	"storj.io/storj/private/testplanet"
 )
 
-func TestIPFSSuite(t *testing.T) {
+func TestIPFSSuite_Datastore(t *testing.T) {
 	testutil.RunDatastoreTest(t, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 		t.Run("basic operations", func(t *testing.T) {
 			dstest.SubtestBasicPutGet(t, storj)

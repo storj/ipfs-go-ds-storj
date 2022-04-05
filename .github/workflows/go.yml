@@ -41,7 +41,6 @@ jobs:
 
     - name: Test
       run: go test -v ./...
-      timeout-minutes: 10
       env:
         STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
         STORJ_TEST_COCKROACH: cockroach://root@localhost:26257/defaultdb?sslmode=disable
