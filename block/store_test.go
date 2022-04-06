@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	dstest "github.com/ipfs/go-datastore/test"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/block"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/testutil"
+
+	"storj.io/ipfs-go-ds-storj/block"
+	"storj.io/ipfs-go-ds-storj/testutil"
 )
 
 func TestIPFSSuite_Blockstore(t *testing.T) {

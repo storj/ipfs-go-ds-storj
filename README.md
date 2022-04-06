@@ -20,10 +20,10 @@ The datastore plugin must be compiled and bundled together with go-ipfs. The plu
 > git checkout v0.12.0
 
 # Pull in the datastore plugin (you can specify a version other than latest if you'd like).
-> go get github.com/kaloyan-raev/ipfs-go-ds-storj/plugin@latest
+> go get storj.io/ipfs-go-ds-storj/plugin@latest
 
 # Add the plugin to the preload list.
-> echo -e "\nstorjds github.com/kaloyan-raev/ipfs-go-ds-storj/plugin 0" >> plugin/loader/preload_list
+> echo -e "\nstorjds storj.io/ipfs-go-ds-storj/plugin 0" >> plugin/loader/preload_list
 
 # Update the deptree
 > go mod tidy
@@ -98,7 +98,7 @@ docker run --rm -d \
     -e STORJ_LOG_FILE=/app/log/output.log \
     -e STORJ_PACK_INTERVAL=5m \
     --mount type=bind,source=<log-dir>,destination=/app/log \
-    kaloyanraev/ipfs-go-ds-storj
+    storjlabs/ipfs-go-ds-storj
 ```
 
 `STORJ_DATABASE_URL` can be set to a Postgres or CockroachDB database URL.

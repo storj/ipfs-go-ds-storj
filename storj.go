@@ -12,12 +12,12 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/block"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/logger"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
 
+	"storj.io/ipfs-go-ds-storj/block"
+	"storj.io/ipfs-go-ds-storj/db"
+	"storj.io/ipfs-go-ds-storj/logger"
+	"storj.io/ipfs-go-ds-storj/pack"
 	"storj.io/uplink"
 )
 

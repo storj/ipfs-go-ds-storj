@@ -1,4 +1,4 @@
-module github.com/kaloyan-raev/ipfs-go-ds-storj
+module storj.io/ipfs-go-ds-storj
 
 require (
 	github.com/google/uuid v1.3.0

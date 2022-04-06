@@ -11,9 +11,10 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
 	"github.com/zeebo/errs"
+
+	"storj.io/ipfs-go-ds-storj/db"
+	"storj.io/ipfs-go-ds-storj/pack"
 )
 
 // Error is the error class for Storj block datastore.

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/plugin"
+	"storj.io/ipfs-go-ds-storj/plugin"
 )
 
 var Plugins = plugin.Plugins //nolint

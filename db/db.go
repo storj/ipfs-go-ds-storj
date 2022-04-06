@@ -10,10 +10,10 @@ import (
 	"strconv"
 
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/logger"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
+	"storj.io/ipfs-go-ds-storj/logger"
 	"storj.io/private/dbutil"
 	_ "storj.io/private/dbutil/cockroachutil" // registers cockroach as a tagsql driver.
 	"storj.io/private/migrate"
