@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
+	storjds "storj.io/ipfs-go-ds-storj"
 )
 
 func TestStorjPluginDatastoreConfigParser(t *testing.T) {

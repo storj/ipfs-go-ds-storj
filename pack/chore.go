@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
-
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
+	"storj.io/ipfs-go-ds-storj/db"
 )
 
 const (

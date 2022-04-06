@@ -10,9 +10,10 @@ import (
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
-	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/db"
 	"github.com/zeebo/errs"
+
+	storjds "storj.io/ipfs-go-ds-storj"
+	"storj.io/ipfs-go-ds-storj/db"
 )
 
 // Error is the error class for Storj datastore plugin.

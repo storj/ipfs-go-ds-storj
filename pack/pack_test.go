@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	ds "github.com/ipfs/go-datastore"
-	storjds "github.com/kaloyan-raev/ipfs-go-ds-storj"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/pack"
-	"github.com/kaloyan-raev/ipfs-go-ds-storj/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"storj.io/common/memory"
 	"storj.io/common/testcontext"
 	"storj.io/common/testrand"
+	storjds "storj.io/ipfs-go-ds-storj"
+	"storj.io/ipfs-go-ds-storj/pack"
+	"storj.io/ipfs-go-ds-storj/testutil"
 	"storj.io/storj/private/testplanet"
 )
 
