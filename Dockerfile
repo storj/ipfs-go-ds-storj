@@ -10,9 +10,9 @@ RUN git clone https://github.com/ipfs/go-ipfs . && \
 COPY . /go-ipfs/ipfs-go-ds-storj
 
 # Build the go-ipfs binary with the Storj datastore plugin from the current source code.
-RUN go get github.com/kaloyan-raev/ipfs-go-ds-storj/plugin@main && \
-    go mod edit -replace github.com/kaloyan-raev/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
-    echo "\nstorjds github.com/kaloyan-raev/ipfs-go-ds-storj/plugin 0" >> "plugin/loader/preload_list" && \
+RUN go get storj.io/ipfs-go-ds-storj/plugin@main && \
+    go mod edit -replace storj.io/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
+    echo "\nstorjds storj.io/ipfs-go-ds-storj/plugin 0" >> "plugin/loader/preload_list" && \
     go mod tidy && \
     # Next line is expected to fail
     make build || true && \
