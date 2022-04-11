@@ -5,7 +5,7 @@ ENV GO111MODULE=on
 WORKDIR /go-ipfs
 
 RUN git clone https://github.com/ipfs/go-ipfs . && \
-    git checkout v0.12.1
+    git checkout v0.12.2
 
 COPY . /go-ipfs/ipfs-go-ds-storj
 
@@ -20,7 +20,7 @@ RUN go get storj.io/ipfs-go-ds-storj/plugin@6d62177471d4f52a182b859e28a28ece5c35
     make build
 
 # Target image
-FROM ipfs/go-ipfs:v0.12.1
+FROM ipfs/go-ipfs:v0.12.2
 
 # Copy the ipfs from the build container.
 ENV SRC_DIR /go-ipfs
