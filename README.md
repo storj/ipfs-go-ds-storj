@@ -101,6 +101,8 @@ docker run --rm -d \
     storjlabs/ipfs-go-ds-storj
 ```
 
+Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-storj.
+
 `STORJ_DATABASE_URL` can be set to a Postgres or CockroachDB database URL.
 
 `STORJ_BUCKET` must be set to an existing bucket.
