@@ -6,6 +6,7 @@ package testutil
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
@@ -27,6 +28,7 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 		SatelliteCount:   1,
 		StorageNodeCount: 4,
 		UplinkCount:      1,
+		Timeout:          10 * time.Minute,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
 		var storj *storjds.Datastore
 		var tempDB *dbutil.TempDatabase
@@ -77,6 +79,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		SatelliteCount:   1,
 		StorageNodeCount: 4,
 		UplinkCount:      1,
+		Timeout:          10 * time.Minute,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
 		sat := planet.Satellites[0]
 		uplnk := planet.Uplinks[0]
