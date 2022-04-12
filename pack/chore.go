@@ -5,10 +5,10 @@ package pack
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
 	"storj.io/ipfs-go-ds-storj/db"
@@ -22,7 +22,7 @@ const (
 )
 
 type Chore struct {
-	logger   *log.Logger
+	log      *zap.Logger
 	db       *db.DB
 	packs    *Store
 	interval time.Duration
@@ -32,9 +32,9 @@ type Chore struct {
 	runOnce  sync.Once
 }
 
-func NewChore(logger *log.Logger, db *db.DB, packs *Store) *Chore {
+func NewChore(log *zap.Logger, db *db.DB, packs *Store) *Chore {
 	return &Chore{
-		logger:   logger,
+		log:      log,
 		db:       db,
 		packs:    packs,
 		interval: DefaultInterval,
@@ -65,7 +65,7 @@ func (chore *Chore) Run(ctx context.Context) {
 	chore.runOnce.Do(func() {
 		// Don't run if the pack interval is negative.
 		if chore.interval < 0 {
-			chore.logger.Println("Packing disabled")
+			chore.log.Info("Packing disabled")
 			return
 		}
 
@@ -73,7 +73,9 @@ func (chore *Chore) Run(ctx context.Context) {
 
 		go func() {
 			err := chore.loop.Run(ctx, chore.pack)
-			chore.logger.Printf("Pack error: %v\n", err)
+			if err != nil {
+				chore.log.Error("Pack error", zap.Error(err))
+			}
 		}()
 	})
 }
@@ -93,10 +95,10 @@ func (chore *Chore) TriggerWait() {
 }
 
 func (chore *Chore) pack(ctx context.Context) (err error) {
-	chore.logger.Println("Pack")
+	chore.log.Debug("Pack")
 	defer func() {
 		if err != nil {
-			chore.logger.Printf("Pack error: %v\n", err)
+			chore.log.Error("Pack error", zap.Error(err))
 		}
 	}()
 

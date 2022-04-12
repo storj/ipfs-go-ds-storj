@@ -7,6 +7,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	"github.com/zeebo/errs"
+	"go.uber.org/zap"
 )
 
 const (
@@ -175,7 +176,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[stri
 		return nil, Error.Wrap(err)
 	}
 
-	db.logger.Printf("QueryNextPack: affected %d rows", affected)
+	db.log.Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
 
 	if affected == 0 {
 		return nil, nil
@@ -245,7 +246,7 @@ func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidO
 			return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
 
-		db.logger.Printf("UpdatePackedBlocks: updated block %s status as packed at offset %d", cid, off)
+		db.log.Debug("UpdatePackedBlocks: updated block status as packed", zap.String("CID", cid), zap.Int("Offset", off))
 	}
 
 	return nil
