@@ -10,7 +10,9 @@ import (
 	dsq "github.com/ipfs/go-datastore/query"
 )
 
-func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) error {
+func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	result, err := db.Exec(ctx, `
 		INSERT INTO datastore (key, data)
 		VALUES ($1, $2)
@@ -33,6 +35,8 @@ func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) error {
 }
 
 func (db *DB) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	err = db.QueryRow(ctx, `
 		SELECT data
 		FROM datastore
@@ -48,6 +52,8 @@ func (db *DB) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 }
 
 func (db *DB) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	err = db.QueryRow(ctx, `
 		SELECT exists(
 			SELECT 1
@@ -65,6 +71,8 @@ func (db *DB) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
 }
 
 func (db *DB) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	err = db.QueryRow(ctx, `
 		SELECT octet_length(data)
 		FROM datastore
@@ -79,15 +87,20 @@ func (db *DB) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	return size, nil
 }
 
-func (db *DB) Delete(ctx context.Context, key ds.Key) error {
-	_, err := db.Exec(ctx, `
+func (db *DB) Delete(ctx context.Context, key ds.Key) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	_, err = db.Exec(ctx, `
 		DELETE FROM datastore
 		WHERE key = $1
 	`, key.String())
+
 	return Error.Wrap(err)
 }
 
 func (db *DB) QueryDatastore(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	var sql string
 	if q.KeysOnly && q.ReturnsSizes {
 		sql = "SELECT key, octet_length(data) FROM datastore"

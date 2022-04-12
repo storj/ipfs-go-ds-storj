@@ -63,6 +63,8 @@ func (chore *Chore) WithPackSize(min, max int) *Chore {
 }
 
 func (chore *Chore) Run(ctx context.Context) {
+	defer mon.Task()(&ctx)(nil)
+
 	chore.runOnce.Do(func() {
 		// Don't run if the pack interval is negative.
 		if chore.interval < 0 {
@@ -96,6 +98,8 @@ func (chore *Chore) TriggerWait() {
 }
 
 func (chore *Chore) pack(ctx context.Context) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	chore.log.Debug("Pack")
 	defer func() {
 		if err != nil {

@@ -10,12 +10,15 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/ipfs-go-ds-storj/pack"
 )
+
+var mon = monkit.Package()
 
 // Error is the error class for Storj block datastore.
 var Error = errs.Class("block")
@@ -55,17 +58,23 @@ func (store *Store) Close() error {
 }
 
 func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	// Run the packer in a separate context to avoid canceling it prematurely.
 	store.packer.Run(context.Background())
 
 	return nil
 }
 
-func (store *Store) Put(ctx context.Context, key ds.Key, value []byte) error {
+func (store *Store) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	return store.db.PutBlock(ctx, store.cid(key), value)
 }
 
-func (store *Store) Get(ctx context.Context, key ds.Key) ([]byte, error) {
+func (store *Store) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	block, err := store.db.GetBlock(ctx, store.cid(key))
 	if err != nil {
 		return nil, err
@@ -82,18 +91,26 @@ func (store *Store) Get(ctx context.Context, key ds.Key) ([]byte, error) {
 }
 
 func (store *Store) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	return store.db.HasBlock(ctx, store.cid(key))
 }
 
 func (store *Store) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	return store.db.GetBlockSize(ctx, store.cid(key))
 }
 
 func (store *Store) Delete(ctx context.Context, key ds.Key) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	return store.db.DeleteBlock(ctx, store.cid(key))
 }
 
 func (store *Store) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	var sql string
 	if q.KeysOnly && q.ReturnsSizes {
 		sql = "SELECT cid, size FROM blocks"

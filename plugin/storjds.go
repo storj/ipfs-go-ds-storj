@@ -5,17 +5,21 @@ package plugin
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"time"
 
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/db"
+	"storj.io/private/debug"
 	"storj.io/private/process"
 )
 
@@ -92,6 +96,14 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			}
 		}
 
+		var debugAddr string
+		if v, ok := m["debugAddr"]; ok {
+			debugAddr, ok = v.(string)
+			if !ok {
+				return nil, Error.New("debugAddr not a string")
+			}
+		}
+
 		return &StorjConfig{
 			cfg: storjds.Config{
 				DBURI:        dbURI,
@@ -100,6 +112,7 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 				LogFile:      logFile,
 				LogLevel:     logLevel,
 				PackInterval: packInterval,
+				DebugAddr:    debugAddr,
 			},
 		}, nil
 	}
@@ -118,7 +131,12 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	ctx := context.Background()
 
-	log, err := storj.initLogger()
+	log, level, err := storj.initLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	err = storj.initDebug(log, monkit.Default, level)
 	if err != nil {
 		return nil, err
 	}
@@ -138,30 +156,52 @@ func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	return storjds.NewDatastore(context.Background(), log, db, storj.cfg)
 }
 
-func (storj *StorjConfig) initLogger() (log *zap.Logger, err error) {
-	var level *zap.AtomicLevel
-
+func (storj *StorjConfig) initLogger() (log *zap.Logger, level *zap.AtomicLevel, err error) {
 	if len(storj.cfg.LogFile) == 0 {
 		log, level, err = process.NewLogger("ipfs-go-ds-storj")
 	} else {
 		log, level, err = process.NewLoggerWithOutputPathsAndAtomicLevel("ipfs-go-ds-storj", storj.cfg.LogFile)
 	}
 	if err != nil {
-		return nil, Error.New("failed to initialize logger: %v", err)
+		return nil, nil, Error.New("failed to initialize logger: %v", err)
 	}
 
 	if len(storj.cfg.LogLevel) == 0 {
 		level.SetLevel(zapcore.InfoLevel)
-		return log, nil
+		return log, level, nil
 	}
 
 	lvl := zapcore.Level(0)
 	err = lvl.Set(storj.cfg.LogLevel)
 	if err != nil {
-		return nil, Error.New("failed to parse log level: %v", err)
+		return nil, nil, Error.New("failed to parse log level: %v", err)
 	}
 
 	level.SetLevel(lvl)
 
-	return log, nil
+	return log, level, nil
+}
+
+func (storj *StorjConfig) initDebug(log *zap.Logger, r *monkit.Registry, atomicLevel *zap.AtomicLevel) (err error) {
+	if len(storj.cfg.DebugAddr) == 0 {
+		return nil
+	}
+
+	ln, err := net.Listen("tcp", storj.cfg.DebugAddr)
+	if err != nil {
+		return Error.New("failed to initialize debugger: %v", err)
+	}
+
+	go func() {
+		server := debug.NewServerWithAtomicLevel(log, ln, r, debug.Config{
+			Address: storj.cfg.DebugAddr,
+		}, atomicLevel)
+		log.Debug(fmt.Sprintf("debug server listening on %s", ln.Addr().String()))
+		err := server.Run(context.Background())
+		if err != nil {
+			log.Error("debug server died", zap.Error(err))
+		}
+	}()
+
+	return nil
 }

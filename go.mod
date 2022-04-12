@@ -5,6 +5,7 @@ require (
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ipfs v0.12.2
 	github.com/jackc/pgx/v4 v4.13.0
+	github.com/spacemonkeygo/monkit/v3 v3.0.17
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/zap v1.19.1
