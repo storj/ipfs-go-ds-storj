@@ -80,7 +80,7 @@ The `logFile` config is optional. If set, it redirects the logging of this plugi
 
 `$packInterval` is an optional time duration that sets the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
-`$debugAddr` is an optional `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints is disabled.
+`$debugAddr` is an optional `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints are disabled.
 
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
@@ -136,7 +136,7 @@ If `STORJ_LOG_FILE` is not set, the logs are printed to the standard error.
 
 `STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
-`STORJ_DEBUG_ADDR` can be set to a specific `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints is disabled.
+`STORJ_DEBUG_ADDR` can be set to a specific `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints are disabled.
 
 ## License
 

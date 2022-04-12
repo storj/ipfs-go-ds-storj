@@ -61,14 +61,18 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 				"bucket":       "somebucket",
 				"accessGrant":  "someaccessgrant",
 				"logFile":      "somelogfile",
+				"logLevel":     "someloglevel",
 				"packInterval": "3m",
+				"debugAddr":    "somedebugaddr",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
 				DBURI:        "somedburi",
 				Bucket:       "somebucket",
 				AccessGrant:  "someaccessgrant",
 				LogFile:      "somelogfile",
+				LogLevel:     "someloglevel",
 				PackInterval: 3 * time.Minute,
+				DebugAddr:    "somedebugaddr",
 			}},
 		},
 		{
