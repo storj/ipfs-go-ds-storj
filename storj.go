@@ -5,6 +5,7 @@ package storjds
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -129,10 +130,10 @@ func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
 func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 	storj.log.Debug("Get requested", zap.Stringer("Key", key))
 	defer func() {
-		if err != nil {
+		if err != nil && !errors.Is(err, ds.ErrNotFound) {
 			storj.log.Error("Get returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.log.Debug("Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)))
+			storj.log.Debug("Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)), zap.Error(err))
 		}
 	}()
 
@@ -164,10 +165,10 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
 	storj.log.Debug("GetSize requested", zap.Stringer("Key", key))
 	defer func() {
-		if err != nil {
+		if err != nil && !errors.Is(err, ds.ErrNotFound) {
 			storj.log.Error("GetSize returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.log.Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size))
+			storj.log.Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
 		}
 	}()
 
