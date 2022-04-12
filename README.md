@@ -58,20 +58,26 @@ The `config` file should include the following:
         "dbURI": "$databaseURI",
         "bucket": "$bucketname",
         "accessGrant": "$accessGrant",
-        "logFile": "$pathToLogFile"
+        "logFile": "$pathToLogFile",
+        "logLevel": "$logLevel",
+        "packInterval": "$packInterval"
       },
       "prefix": "storj.datastore",
       "type": "measure"
     }
   ...
 ```
-`$ ` is the URI to a Postgre or CockroachDB database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
+`$databaseURI` is the URI to a Postgres or CockroachDB database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
 
 `$bucketname` is a bucket on Storj DCS. It must be created.
 
 `$accessGrant` is an access grant for Storj DCS with full permission on the entire `$bucketname` bucket.
 
-The `logFile` config is optional. If set, it enables logging for this plugin.
+The `logFile` config is optional. If set, it redirects the logging of this plugin to the specified file. Otherwise, logs are printed to the standard error.
+
+`$logLevel` is an optional log level. If not set, the log level defaults to INFO.
+
+`$packInterval` is an optional time duration that sets the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
@@ -96,6 +102,7 @@ docker run --rm -d \
     -e IPFS_API_PORT=5001 \
     -e IPFS_BLOOM_FILTER_SIZE=1048576 \
     -e STORJ_LOG_FILE=/app/log/output.log \
+    -e STORJ_LOG_LEVEL=info \
     -e STORJ_PACK_INTERVAL=5m \
     --mount type=bind,source=<log-dir>,destination=/app/log \
     storjlabs/ipfs-go-ds-storj
@@ -119,7 +126,9 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
 
-If `STORJ_LOG_FILE` is not set, the logs are printed to the standard output.
+If `STORJ_LOG_FILE` is not set, the logs are printed to the standard error.
+
+`STORJ_LOG_LEVEL` sets the log level. The default level is INFO. 
 
 `STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 

@@ -11,9 +11,12 @@ import (
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	"github.com/zeebo/errs"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/db"
+	"storj.io/private/process"
 )
 
 // Error is the error class for Storj datastore plugin.
@@ -68,6 +71,14 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			}
 		}
 
+		var logLevel string
+		if v, ok := m["logLevel"]; ok {
+			logLevel, ok = v.(string)
+			if !ok {
+				return nil, Error.New("logLevel not a string")
+			}
+		}
+
 		var packInterval time.Duration
 		if v, ok := m["packInterval"]; ok {
 			interval, ok := v.(string)
@@ -87,6 +98,7 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 				Bucket:       bucket,
 				AccessGrant:  accessGrant,
 				LogFile:      logFile,
+				LogLevel:     logLevel,
 				PackInterval: packInterval,
 			},
 		}, nil
@@ -106,15 +118,50 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	ctx := context.Background()
 
+	log, err := storj.initLogger()
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := db.Open(ctx, storj.cfg.DBURI)
 	if err != nil {
 		return nil, Error.New("failed to connect to cache database: %s", err)
 	}
+
+	db = db.WithLog(log)
 
 	err = db.MigrateToLatest(ctx)
 	if err != nil {
 		return nil, Error.New("failed to migrate database schema: %s", err)
 	}
 
-	return storjds.NewDatastore(context.Background(), storj.cfg, db)
+	return storjds.NewDatastore(context.Background(), log, db, storj.cfg)
+}
+
+func (storj *StorjConfig) initLogger() (log *zap.Logger, err error) {
+	var level *zap.AtomicLevel
+
+	if len(storj.cfg.LogFile) == 0 {
+		log, level, err = process.NewLogger("ipfs-go-ds-storj")
+	} else {
+		log, level, err = process.NewLoggerWithOutputPathsAndAtomicLevel("ipfs-go-ds-storj", storj.cfg.LogFile)
+	}
+	if err != nil {
+		return nil, Error.New("failed to initialize logger: %v", err)
+	}
+
+	if len(storj.cfg.LogLevel) == 0 {
+		level.SetLevel(zapcore.InfoLevel)
+		return log, nil
+	}
+
+	lvl := zapcore.Level(0)
+	err = lvl.Set(storj.cfg.LogLevel)
+	if err != nil {
+		return nil, Error.New("failed to parse log level: %v", err)
+	}
+
+	level.SetLevel(lvl)
+
+	return log, nil
 }

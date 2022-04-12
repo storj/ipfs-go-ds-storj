@@ -15,7 +15,6 @@ import (
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/block"
 	"storj.io/ipfs-go-ds-storj/db"
-	"storj.io/ipfs-go-ds-storj/logger"
 	"storj.io/ipfs-go-ds-storj/pack"
 	"storj.io/private/dbutil"
 	"storj.io/private/dbutil/tempdb"
@@ -53,7 +52,7 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 		tempDB, err = tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
 		require.NoError(t, err)
 
-		db := db.Wrap(tempDB.DB)
+		db := db.Wrap(tempDB.DB).WithLog(planet.Log())
 
 		err = db.MigrateToLatest(ctx)
 		require.NoError(t, err)
@@ -64,10 +63,10 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 		err = uplnk.CreateBucket(ctx, sat, bucket)
 		require.NoError(t, err)
 
-		storj, err = storjds.NewDatastore(ctx, storjds.Config{
+		storj, err = storjds.NewDatastore(ctx, planet.Log(), db, storjds.Config{
 			Bucket:      bucket,
 			AccessGrant: access,
-		}, db)
+		})
 		require.NoError(t, err)
 
 		f(t, ctx, planet, storj)
@@ -92,7 +91,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		require.NoError(t, err)
 		defer tempDB.Close()
 
-		db := db.Wrap(tempDB.DB)
+		db := db.Wrap(tempDB.DB).WithLog(planet.Log())
 
 		err = db.MigrateToLatest(ctx)
 		require.NoError(t, err)
@@ -104,7 +103,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		require.NoError(t, err)
 		defer project.Close()
 
-		blocks := block.NewStore("/", logger.Default, db, pack.NewStore(logger.Default, project, bucket))
+		blocks := block.NewStore("/", planet.Log(), db, pack.NewStore(planet.Log(), project, bucket))
 		defer blocks.Close()
 
 		f(t, blocks)

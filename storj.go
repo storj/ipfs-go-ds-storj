@@ -5,7 +5,6 @@ package storjds
 
 import (
 	"context"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -13,10 +12,10 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/zeebo/errs"
+	"go.uber.org/zap"
 
 	"storj.io/ipfs-go-ds-storj/block"
 	"storj.io/ipfs-go-ds-storj/db"
-	"storj.io/ipfs-go-ds-storj/logger"
 	"storj.io/ipfs-go-ds-storj/pack"
 	"storj.io/uplink"
 )
@@ -27,7 +26,7 @@ var Error = errs.Class("storjds")
 type Datastore struct {
 	Config
 	logFile *os.File
-	logger  *log.Logger
+	log     *zap.Logger
 	db      *db.DB
 	project *uplink.Project
 	blocks  *block.Store
@@ -38,27 +37,14 @@ type Config struct {
 	AccessGrant  string
 	Bucket       string
 	LogFile      string
+	LogLevel     string
 	PackInterval time.Duration
 	MinPackSize  int
 	MaxPackSize  int
 }
 
-func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, error) {
-	logger := logger.Default
-	var logFile *os.File
-
-	if len(conf.LogFile) > 0 {
-		var err error
-		logFile, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
-		if err != nil {
-			return nil, Error.New("failed to create log file: %v", err)
-		}
-		logger = log.New(logFile, "", log.LstdFlags|log.Lmicroseconds)
-	}
-
-	db = db.WithLogger(logger)
-
-	logger.Println("NewStorjDatastore")
+func NewDatastore(ctx context.Context, log *zap.Logger, db *db.DB, conf Config) (*Datastore, error) {
+	log.Info("New Datastore")
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
@@ -70,15 +56,14 @@ func NewDatastore(ctx context.Context, conf Config, db *db.DB) (*Datastore, erro
 		return nil, Error.New("failed to open Storj project: %s", err)
 	}
 
-	packs := pack.NewStore(logger, project, conf.Bucket)
-	blocks := block.NewStore("/blocks", logger, db, packs).
+	packs := pack.NewStore(log, project, conf.Bucket)
+	blocks := block.NewStore("/blocks", log, db, packs).
 		WithPackInterval(conf.PackInterval).
 		WithPackSize(conf.MinPackSize, conf.MaxPackSize)
 
 	return &Datastore{
 		Config:  conf,
-		logFile: logFile,
-		logger:  logger,
+		log:     log,
 		db:      db,
 		project: project,
 		blocks:  blocks,
@@ -108,12 +93,12 @@ func (storj *Datastore) Blockstore() *block.Store {
 }
 
 func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
-	storj.logger.Printf("Put requested for key %s and data of %d bytes\n", key, len(value))
+	storj.log.Debug("Put requested", zap.Stringer("Key", key), zap.Int("Bytes", len(value)))
 	defer func() {
-		if err == nil {
-			storj.logger.Printf("Put for key %s returned\n", key)
+		if err != nil {
+			storj.log.Error("Put returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.logger.Printf("Put for key %s returned error: %v\n", key, err)
+			storj.log.Debug("Put returned", zap.Stringer("Key", key))
 		}
 	}()
 
@@ -125,12 +110,12 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 }
 
 func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	storj.logger.Printf("Sync requested for prefix '%s'\n", prefix)
+	storj.log.Debug("Sync requested", zap.Stringer("Prefix", prefix))
 	defer func() {
-		if err == nil {
-			storj.logger.Printf("Sync for prefix '%s' returned\n", prefix)
+		if err != nil {
+			storj.log.Error("Sync returned error", zap.Stringer("Prefix", prefix), zap.Error(err))
 		} else {
-			storj.logger.Printf("Sync for prefix '%s' returned error: %v\n", prefix, err)
+			storj.log.Debug("Sync returned", zap.Stringer("Prefix", prefix))
 		}
 	}()
 
@@ -142,12 +127,12 @@ func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
 }
 
 func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
-	storj.logger.Printf("Get requested for key %s\n", key)
+	storj.log.Debug("Get requested", zap.Stringer("Key", key))
 	defer func() {
-		if err == nil {
-			storj.logger.Printf("Get for key %s returned %d bytes of data\n", key, len(data))
+		if err != nil {
+			storj.log.Error("Get returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.logger.Printf("Get for key %s returned error: %v\n", key, err)
+			storj.log.Debug("Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)))
 		}
 	}()
 
@@ -159,12 +144,12 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 }
 
 func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
-	storj.logger.Printf("Has requested for key %s\n", key)
+	storj.log.Debug("Has requested", zap.Stringer("Key", key))
 	defer func() {
-		if err == nil {
-			storj.logger.Printf("Has for key %s returned: %t\n", key, exists)
+		if err != nil {
+			storj.log.Error("Has returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.logger.Printf("Has for key %s returned error: %v\n", key, err)
+			storj.log.Debug("Has returned", zap.Stringer("Key", key), zap.Bool("Exists", exists))
 		}
 	}()
 
@@ -177,14 +162,14 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 
 func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
-	// storj.logger.Printf("GetSize requested for key %s\n", key)
-	// defer func() {
-	// 	if err == nil {
-	// 		storj.logger.Printf("GetSize for key %s returned: %d\n", key, size)
-	// 	} else {
-	// 		storj.logger.Printf("GetSize for key %s returned error: %v\n", key, err)
-	// 	}
-	// }()
+	storj.log.Debug("GetSize requested", zap.Stringer("Key", key))
+	defer func() {
+		if err != nil {
+			storj.log.Error("GetSize returned error", zap.Stringer("Key", key), zap.Error(err))
+		} else {
+			storj.log.Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size))
+		}
+	}()
 
 	if isBlockKey(key) {
 		return storj.blocks.GetSize(ctx, trimFirstNamespace(key))
@@ -194,12 +179,12 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 }
 
 func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
-	storj.logger.Printf("Delete requested for key %s\n", key)
+	storj.log.Debug("Delete requested", zap.Stringer("Key", key))
 	defer func() {
-		if err == nil {
-			storj.logger.Printf("Delete for key %s returned\n", key)
+		if err != nil {
+			storj.log.Error("Delete returned error", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			storj.logger.Printf("Delete for key %s returned error: %v\n", key, err)
+			storj.log.Debug("Delete returned", zap.Stringer("Key", key))
 		}
 	}()
 
@@ -211,12 +196,12 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 }
 
 func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Results, err error) {
-	storj.logger.Printf("Query requested: %s\n", q)
+	storj.log.Debug("Query requested", zap.Stringer("Query", q))
 	defer func() {
-		if err == nil {
-			storj.logger.Println("Query returned")
+		if err != nil {
+			storj.log.Error("Query returned error", zap.Stringer("Query", q), zap.Error(err))
 		} else {
-			storj.logger.Printf("Query returned error: %v\n", err)
+			storj.log.Debug("Query returned", zap.Stringer("Query", q))
 		}
 	}()
 
@@ -228,7 +213,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 }
 
 func (storj *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
-	storj.logger.Println("Batch")
+	storj.log.Debug("Batch")
 
 	return &storjBatch{
 		storj: storj,
@@ -237,7 +222,7 @@ func (storj *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
 }
 
 func (storj *Datastore) Close() error {
-	storj.logger.Println("Close")
+	storj.log.Debug("Close")
 
 	err := errs.Combine(
 		storj.project.Close(),
@@ -279,7 +264,7 @@ type batchOp struct {
 }
 
 func (b *storjBatch) Put(ctx context.Context, key ds.Key, value []byte) error {
-	b.storj.logger.Printf("BatchPut --- key: %s --- bytes: %d\n", key, len(value))
+	b.storj.log.Debug("BatchPut", zap.Stringer("Key", key), zap.Int("Bytes", len(value)))
 
 	b.ops[key] = batchOp{
 		value:  value,
@@ -290,7 +275,7 @@ func (b *storjBatch) Put(ctx context.Context, key ds.Key, value []byte) error {
 }
 
 func (b *storjBatch) Delete(ctx context.Context, key ds.Key) error {
-	b.storj.logger.Printf("BatchDelete --- key: %s\n", key)
+	b.storj.log.Debug("BatchDelete", zap.Stringer("Key", key))
 
 	b.ops[key] = batchOp{
 		value:  nil,
@@ -301,7 +286,7 @@ func (b *storjBatch) Delete(ctx context.Context, key ds.Key) error {
 }
 
 func (b *storjBatch) Commit(ctx context.Context) error {
-	b.storj.logger.Println("BatchCommit")
+	b.storj.log.Debug("BatchCommit")
 
 	for key, op := range b.ops {
 		var err error

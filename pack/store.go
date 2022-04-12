@@ -6,10 +6,10 @@ package pack
 import (
 	"context"
 	"io/ioutil"
-	"log"
 
 	"github.com/google/uuid"
 	"github.com/zeebo/errs"
+	"go.uber.org/zap"
 
 	"storj.io/uplink"
 	"storj.io/zipper"
@@ -19,14 +19,14 @@ import (
 var Error = errs.Class("pack")
 
 type Store struct {
-	logger  *log.Logger
+	log     *zap.Logger
 	project *uplink.Project
 	bucket  string
 }
 
-func NewStore(logger *log.Logger, project *uplink.Project, bucket string) *Store {
+func NewStore(log *zap.Logger, project *uplink.Project, bucket string) *Store {
 	return &Store{
-		logger:  logger,
+		log:     log,
 		project: project,
 		bucket:  bucket,
 	}
@@ -53,7 +53,7 @@ func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset
 }
 
 func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (string, map[string]int, error) {
-	store.logger.Printf("Pack: %d blocks ready to pack", len(blocks))
+	store.log.Debug("Pack: blocks ready to pack", zap.Int("Count", len(blocks)))
 
 	packObjectKey := uuid.NewString()
 	pack, err := zipper.CreatePack(ctx, store.project, store.bucket, packObjectKey, nil)
@@ -61,7 +61,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (st
 		return "", nil, Error.Wrap(err)
 	}
 
-	store.logger.Printf("Pack: created pending pack %s", packObjectKey)
+	store.log.Debug("Pack: created pending pack", zap.String("Object Key", packObjectKey))
 
 	cidOffs := make(map[string]int, len(blocks))
 	for cid, data := range blocks {
@@ -77,7 +77,11 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (st
 			return "", nil, Error.Wrap(err)
 		}
 
-		store.logger.Printf("Pack: added block %s of size %d to pack %s at offset %d", cid, len(data), packObjectKey, cidOffs[cid])
+		store.log.Debug("Pack: added block to pack",
+			zap.String("CID", cid),
+			zap.Int("Size", len(data)),
+			zap.String("Object Key", packObjectKey),
+			zap.Int("Offset", cidOffs[cid]))
 	}
 
 	err = pack.Commit(ctx)
@@ -85,7 +89,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (st
 		return "", nil, Error.Wrap(err)
 	}
 
-	store.logger.Printf("Pack: committed pack %s", packObjectKey)
+	store.log.Debug("Pack: committed pack", zap.String("Object Key", packObjectKey))
 
 	return packObjectKey, cidOffs, nil
 }

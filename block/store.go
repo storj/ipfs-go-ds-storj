@@ -5,13 +5,13 @@ package block
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/zeebo/errs"
+	"go.uber.org/zap"
 
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/ipfs-go-ds-storj/pack"
@@ -27,12 +27,12 @@ type Store struct {
 	packer *pack.Chore
 }
 
-func NewStore(mount string, logger *log.Logger, db *db.DB, packs *pack.Store) *Store {
+func NewStore(mount string, log *zap.Logger, db *db.DB, packs *pack.Store) *Store {
 	return &Store{
 		mount:  mount,
 		db:     db,
 		packs:  packs,
-		packer: pack.NewChore(logger, db, packs),
+		packer: pack.NewChore(log, db, packs),
 	}
 }
 
