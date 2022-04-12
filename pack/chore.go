@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
 	"storj.io/ipfs-go-ds-storj/db"
