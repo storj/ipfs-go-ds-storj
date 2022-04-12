@@ -26,7 +26,9 @@ type Block struct {
 	PackOffset int
 }
 
-func (db *DB) PutBlock(ctx context.Context, cid string, value []byte) error {
+func (db *DB) PutBlock(ctx context.Context, cid string, value []byte) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	result, err := db.Exec(ctx, `
 		INSERT INTO blocks (cid, size, data)
 		VALUES ($1, $2, $3)
@@ -48,12 +50,14 @@ func (db *DB) PutBlock(ctx context.Context, cid string, value []byte) error {
 	return nil
 }
 
-func (db *DB) GetBlock(ctx context.Context, cid string) (*Block, error) {
-	block := Block{
+func (db *DB) GetBlock(ctx context.Context, cid string) (block *Block, err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	block = &Block{
 		CID: cid,
 	}
 
-	err := db.QueryRow(ctx, `
+	err = db.QueryRow(ctx, `
 		SELECT
 			size, data, deleted,
 			pack_status, pack_object, pack_offset
@@ -74,10 +78,12 @@ func (db *DB) GetBlock(ctx context.Context, cid string) (*Block, error) {
 		return nil, ds.ErrNotFound
 	}
 
-	return &block, nil
+	return block, nil
 }
 
 func (db *DB) HasBlock(ctx context.Context, cid string) (exists bool, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	var deleted bool
 	err = db.QueryRow(ctx, `
 		SELECT deleted
@@ -97,6 +103,8 @@ func (db *DB) HasBlock(ctx context.Context, cid string) (exists bool, err error)
 }
 
 func (db *DB) GetBlockSize(ctx context.Context, cid string) (size int, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	var deleted bool
 	err = db.QueryRow(ctx, `
 		SELECT size, deleted
@@ -120,6 +128,8 @@ func (db *DB) GetBlockSize(ctx context.Context, cid string) (size int, err error
 }
 
 func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Error.Wrap(err)
@@ -150,7 +160,9 @@ func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 	return Error.Wrap(err)
 }
 
-func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[string][]byte, error) {
+func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks map[string][]byte, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	result, err := db.Exec(ctx, `
 		WITH next_pack AS (
 			SELECT b.cid, sum(b2.size) AS sums
@@ -193,7 +205,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[stri
 	}
 	defer rows.Close()
 
-	blocks := make(map[string][]byte)
+	blocks = make(map[string][]byte)
 	for rows.Next() {
 		var cid string
 		var data []byte
@@ -209,7 +221,9 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (map[stri
 	return blocks, nil
 }
 
-func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) error {
+func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Error.Wrap(err)

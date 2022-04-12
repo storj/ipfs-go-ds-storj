@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
+	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
@@ -17,6 +18,8 @@ import (
 	"storj.io/private/migrate"
 	"storj.io/private/tagsql"
 )
+
+var mon = monkit.Package()
 
 // Error is the error class for datastore database.
 var Error = errs.Class("db")
@@ -28,7 +31,9 @@ type DB struct {
 }
 
 // Open creates instance of the database.
-func Open(ctx context.Context, databaseURL string) (*DB, error) {
+func Open(ctx context.Context, databaseURL string) (db *DB, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	_, _, impl, err := dbutil.SplitConnStr(databaseURL)
 	if err != nil {
 		return nil, Error.Wrap(err)
@@ -44,17 +49,20 @@ func Open(ctx context.Context, databaseURL string) (*DB, error) {
 		return nil, Error.New("unsupported implementation: %s", driverName)
 	}
 
-	db, err := tagsql.Open(ctx, driverName, databaseURL)
+	tagdb, err := tagsql.Open(ctx, driverName, databaseURL)
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}
 
-	return Wrap(db), nil
+	return Wrap(tagdb), nil
 }
 
 // MigrateToLatest migrates pindb to the latest version.
-func (db *DB) MigrateToLatest(ctx context.Context) error {
-	err := db.Migration().Run(ctx, db.log)
+func (db *DB) MigrateToLatest(ctx context.Context) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	err = db.Migration().Run(ctx, db.log)
+
 	return Error.Wrap(err)
 }
 

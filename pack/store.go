@@ -8,12 +8,15 @@ import (
 	"io/ioutil"
 
 	"github.com/google/uuid"
+	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
 	"storj.io/uplink"
 	"storj.io/zipper"
 )
+
+var mon = monkit.Package()
 
 // Error is the error class for pack chore.
 var Error = errs.Class("pack")
@@ -32,7 +35,9 @@ func NewStore(log *zap.Logger, project *uplink.Project, bucket string) *Store {
 	}
 }
 
-func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset, size int) ([]byte, error) {
+func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset, size int) (data []byte, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	download, err := store.project.DownloadObject(ctx, store.bucket, packObject, &uplink.DownloadOptions{
 		Offset: int64(packOffset),
 		Length: int64(size),
@@ -44,7 +49,7 @@ func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset
 		err = errs.Combine(err, download.Close())
 	}()
 
-	data, err := ioutil.ReadAll(download)
+	data, err = ioutil.ReadAll(download)
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}
@@ -52,10 +57,12 @@ func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset
 	return data, nil
 }
 
-func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (string, map[string]int, error) {
+func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (packObjectKey string, cidOffs map[string]int, err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	store.log.Debug("Pack: blocks ready to pack", zap.Int("Count", len(blocks)))
 
-	packObjectKey := uuid.NewString()
+	packObjectKey = uuid.NewString()
 	pack, err := zipper.CreatePack(ctx, store.project, store.bucket, packObjectKey, nil)
 	if err != nil {
 		return "", nil, Error.Wrap(err)
@@ -63,7 +70,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (st
 
 	store.log.Debug("Pack: created pending pack", zap.String("Object Key", packObjectKey))
 
-	cidOffs := make(map[string]int, len(blocks))
+	cidOffs = make(map[string]int, len(blocks))
 	for cid, data := range blocks {
 		writer, err := pack.Add(ctx, cid, &zipper.FileHeader{Uncompressed: true})
 		if err != nil {
