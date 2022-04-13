@@ -5,10 +5,12 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
 
+	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
@@ -186,6 +188,13 @@ func (storj *StorjConfig) initDebug(log *zap.Logger, r *monkit.Registry, atomicL
 	if len(storj.cfg.DebugAddr) == 0 {
 		return nil
 	}
+
+	monkit.AddErrorNameHandler(func(err error) (string, bool) {
+		if errors.Is(err, ds.ErrNotFound) {
+			return "not found", true
+		}
+		return "", false
+	})
 
 	ln, err := net.Listen("tcp", storj.cfg.DebugAddr)
 	if err != nil {
