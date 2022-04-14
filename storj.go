@@ -76,11 +76,14 @@ func NewDatastore(ctx context.Context, log *zap.Logger, db *db.DB, conf Config) 
 }
 
 func (storj *Datastore) WithPackInterval(interval time.Duration) *Datastore {
+	storj.PackInterval = interval
 	storj.blocks.WithPackInterval(interval)
 	return storj
 }
 
 func (storj *Datastore) WithPackSize(min, max int) *Datastore {
+	storj.MinPackSize = min
+	storj.MaxPackSize = max
 	storj.blocks.WithPackSize(min, max)
 	return storj
 }
