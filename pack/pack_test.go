@@ -20,7 +20,20 @@ import (
 	"storj.io/storj/private/testplanet"
 )
 
-func TestPack(t *testing.T) {
+func TestPack_HappyPath(t *testing.T) {
+	runPackTest(t, func(ctx *testcontext.Context, storj *storjds.Datastore) {})
+}
+
+func TestPack_ContinueInterrupted(t *testing.T) {
+	runPackTest(t, func(ctx *testcontext.Context, storj *storjds.Datastore) {
+		// Simulate interrupted packing by setting the next batch to packing status
+		blocks, err := storj.DB().QueryNextPack(ctx, storj.MinPackSize, storj.MaxPackSize)
+		require.NoError(t, err)
+		require.Len(t, blocks, 8)
+	})
+}
+
+func runPackTest(t *testing.T, initPackStatus func(ctx *testcontext.Context, storj *storjds.Datastore)) {
 	testutil.RunDatastoreTest(t, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
 		storj = storj.WithPackSize(1*memory.MiB.Int(), 2*memory.MiB.Int())
 
@@ -39,6 +52,9 @@ func TestPack(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		initPackStatus(ctx, storj)
+
+		// Sync starts the pack chore
 		err := storj.Sync(ctx, ds.NewKey(""))
 		require.NoError(t, err)
 
