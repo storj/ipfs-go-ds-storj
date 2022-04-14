@@ -190,10 +190,6 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 
 	db.log.Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
 
-	if affected == 0 {
-		return nil, nil
-	}
-
 	rows, err := db.DB.Query(ctx, `
 		SELECT cid, data
 		FROM blocks
@@ -217,6 +213,8 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 	if err = rows.Err(); err != nil {
 		return nil, Error.Wrap(err)
 	}
+
+	db.log.Debug("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
 
 	return blocks, nil
 }
