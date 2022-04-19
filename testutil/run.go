@@ -5,6 +5,7 @@ package testutil
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,23 +32,23 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
 		var storj *storjds.Datastore
 		var tempDB *dbutil.TempDatabase
+		var err error
 		defer func() {
-			var err1, err2 error
+			var dbErr, dsErr error
 			if tempDB != nil {
-				err1 = tempDB.Close()
+				dbErr = tempDB.Close()
 			}
 			if storj != nil {
-				storj.Close()
+				dsErr = storj.Close()
 			}
-			require.NoError(t, errs.Combine(err1, err2))
+			require.NoError(t, errs.Combine(dbErr, dsErr))
 		}()
 
 		sat := planet.Satellites[0]
 		uplnk := planet.Uplinks[0]
 		bucket := "testbucket"
 
-		dbURI, err := dbURI(sat.Metabase.DB.Implementation())
-		require.NoError(t, err)
+		dbURI := dbURI(t, sat.Metabase.DB.Implementation())
 
 		tempDB, err = tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
 		require.NoError(t, err)
@@ -84,12 +85,11 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 		uplnk := planet.Uplinks[0]
 		bucket := "testbucket"
 
-		dbURI, err := dbURI(sat.Metabase.DB.Implementation())
-		require.NoError(t, err)
+		dbURI := dbURI(t, sat.Metabase.DB.Implementation())
 
 		tempDB, err := tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
 		require.NoError(t, err)
-		defer tempDB.Close()
+		defer ctx.Check(tempDB.Close)
 
 		db := db.Wrap(tempDB.DB)
 
@@ -101,30 +101,56 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 
 		project, err := uplink.OpenProject(ctx, uplnk.Access[sat.ID()])
 		require.NoError(t, err)
-		defer project.Close()
+		defer ctx.Check(project.Close)
 
 		blocks := block.NewStore("/", db, pack.NewStore(project, bucket))
-		defer blocks.Close()
+		defer ctx.Check(blocks.Close)
 
 		f(t, blocks)
 	})
 }
 
-func dbURI(impl dbutil.Implementation) (string, error) {
+func RunDBTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Context, tempDB *dbutil.TempDatabase, db *db.DB)) {
+	for _, impl := range []dbutil.Implementation{dbutil.Postgres, dbutil.Cockroach} {
+		impl := impl
+		t.Run(strings.Title(impl.String()), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testcontext.New(t)
+			defer ctx.Cleanup()
+
+			dbURI := dbURI(t, impl)
+
+			tempDB, err := tempdb.OpenUnique(ctx, dbURI, "ipfs-go-ds-storj")
+			require.NoError(t, err)
+			defer ctx.Check(tempDB.Close)
+
+			db := db.Wrap(tempDB.DB)
+
+			err = db.MigrateToLatest(ctx)
+			require.NoError(t, err)
+
+			f(t, ctx, tempDB, db)
+		})
+	}
+}
+
+func dbURI(t *testing.T, impl dbutil.Implementation) (dbURI string) {
 	switch impl {
 	case dbutil.Postgres:
 		dbURI, set := os.LookupEnv("STORJ_TEST_POSTGRES")
 		if !set {
-			return "", errs.New("STORJ_TEST_POSTGRES is not set")
+			t.Skip("skipping test suite; STORJ_TEST_POSTGRES is not set.")
 		}
-		return dbURI, nil
+		return dbURI
 	case dbutil.Cockroach:
 		dbURI, set := os.LookupEnv("STORJ_TEST_COCKROACH")
 		if !set {
-			return "", errs.New("STORJ_TEST_COCKROACH is not set")
+			t.Skip("skipping test suite; STORJ_TEST_COCKROACH is not set.")
 		}
-		return dbURI, nil
+		return dbURI
 	default:
-		return "", errs.New("unsupported database implementation %q", impl)
+		t.Errorf("unsupported database implementation %q", impl)
+		return ""
 	}
 }

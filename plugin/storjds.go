@@ -8,10 +8,14 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strconv"
 	"time"
 	"unsafe"
 
+	"github.com/ipfs/bbloom"
 	ds "github.com/ipfs/go-datastore"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
@@ -21,9 +25,14 @@ import (
 	"go.uber.org/zap"
 
 	storjds "storj.io/ipfs-go-ds-storj"
+	"storj.io/ipfs-go-ds-storj/bloom"
 	"storj.io/ipfs-go-ds-storj/db"
+	"storj.io/private/dbutil"
 	"storj.io/private/debug"
 )
+
+var _ plugin.PluginDatastore = (*StorjPlugin)(nil)
+var _ plugin.PluginDaemonInternal = (*StorjPlugin)(nil)
 
 var log = logging.Logger("storjds").Named("plugin")
 
@@ -34,7 +43,9 @@ var Plugins = []plugin.Plugin{
 	&StorjPlugin{},
 }
 
-type StorjPlugin struct{}
+type StorjPlugin struct {
+	bloomUpdater *bloom.Updater
+}
 
 func (plugin StorjPlugin) Name() string {
 	return "storj-datastore-plugin"
@@ -92,16 +103,114 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			}
 		}
 
+		var updateBloomFilter bool
+		if v, ok := m["updateBloomFilter"]; ok {
+			updateFlag, ok := v.(string)
+			if !ok {
+				return nil, Error.New("updateBloomFilter not a string")
+			}
+			var err error
+			updateBloomFilter, err = strconv.ParseBool(updateFlag)
+			if err != nil {
+				return nil, Error.New("updateBloomFilter not a boolean: %v", err)
+			}
+		}
+
 		return &StorjConfig{
 			cfg: storjds.Config{
-				DBURI:        dbURI,
-				Bucket:       bucket,
-				AccessGrant:  accessGrant,
-				PackInterval: packInterval,
-				DebugAddr:    debugAddr,
+				DBURI:             dbURI,
+				Bucket:            bucket,
+				AccessGrant:       accessGrant,
+				PackInterval:      packInterval,
+				DebugAddr:         debugAddr,
+				UpdateBloomFilter: updateBloomFilter,
 			},
 		}, nil
 	}
+}
+
+func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
+	log.Desugar().Debug("Start")
+
+	repoCfg, err := node.Repo.Config()
+	if err != nil {
+		return Error.Wrap(err)
+	}
+
+	storjCfg := lookupStorjDatastoreSpec(repoCfg.Datastore.Spec)
+	if storjCfg == nil {
+		return Error.New("storj datastore spec not found")
+	}
+
+	cfg, err := fsrepo.AnyDatastoreConfig(storjCfg)
+	if err != nil {
+		return Error.Wrap(err)
+	}
+
+	storj, ok := cfg.(*StorjConfig)
+	if !ok {
+		return Error.New("storj datastore spec is not of type *StorjConfig")
+	}
+
+	if repoCfg.Datastore.BloomFilterSize <= 0 {
+		log.Desugar().Debug("Bloom filter disabled")
+		if storj.cfg.UpdateBloomFilter {
+			return Error.New("bloom filter updater is enabled, but the bloom filter itself is disabled")
+		}
+		return nil
+	}
+
+	if !storj.cfg.UpdateBloomFilter {
+		log.Desugar().Debug("Bloom filter updater disabled")
+		return nil
+	}
+
+	bloomFilter := getBloomFilter(node.BaseBlocks)
+	if bloomFilter == nil {
+		return Error.New("bloom filter not found")
+	}
+
+	_, _, impl, err := dbutil.SplitConnStr(storj.cfg.DBURI)
+	if err != nil {
+		return Error.Wrap(err)
+	}
+
+	if impl != dbutil.Cockroach {
+		return Error.New("bloom filter updater is not supported for %s", impl)
+	}
+
+	plugin.bloomUpdater = bloom.NewUpdater(storj.cfg.DBURI, bloomFilter)
+	plugin.bloomUpdater.Run(node.Context())
+
+	return nil
+}
+
+func lookupStorjDatastoreSpec(spec map[string]interface{}) map[string]interface{} {
+	which, ok := spec["type"].(string)
+	if !ok {
+		return nil
+	}
+
+	if which == "storjds" {
+		return spec
+	}
+
+	child, ok := spec["child"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	return lookupStorjDatastoreSpec(child)
+}
+
+func (plugin *StorjPlugin) Close() error {
+	log.Desugar().Debug("Close")
+
+	if plugin.bloomUpdater != nil {
+		return plugin.bloomUpdater.Close()
+	}
+
+	return nil
 }
 
 type StorjConfig struct {
@@ -115,6 +224,8 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 }
 
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
+	log.Desugar().Debug("Create", zap.String("Path", path))
+
 	ctx := context.Background()
 
 	err := storj.initDebug()
@@ -155,7 +266,7 @@ func (storj *StorjConfig) initDebug() (err error) {
 	go func() {
 		server := debug.NewServerWithAtomicLevel(log.Desugar(), ln, monkit.Default, debug.Config{
 			Address: storj.cfg.DebugAddr,
-		}, GetAtomicLevel())
+		}, getAtomicLevel())
 
 		log.Desugar().Debug("Debug server listening", zap.Stringer("Address", ln.Addr()))
 
@@ -168,7 +279,7 @@ func (storj *StorjConfig) initDebug() (err error) {
 	return nil
 }
 
-func GetAtomicLevel() *zap.AtomicLevel {
+func getAtomicLevel() *zap.AtomicLevel {
 	level := getUnexportedField(log.Desugar().Core(), "level")
 	if level == nil {
 		return nil
@@ -181,6 +292,25 @@ func GetAtomicLevel() *zap.AtomicLevel {
 	}
 
 	return &atomic
+}
+
+func getBloomFilter(blockstore blockstore.Blockstore) *bbloom.Bloom {
+	bs := getUnexportedField(blockstore, "bs")
+	if bs == nil {
+		return nil
+	}
+
+	rbloom := getUnexportedField(bs, "bloom")
+	if rbloom == nil {
+		return nil
+	}
+
+	bloom, ok := rbloom.(*bbloom.Bloom)
+	if !ok {
+		return nil
+	}
+
+	return bloom
 }
 
 func getUnexportedField(iface interface{}, name string) interface{} {

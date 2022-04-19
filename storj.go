@@ -37,13 +37,14 @@ type Datastore struct {
 }
 
 type Config struct {
-	DBURI        string
-	AccessGrant  string
-	Bucket       string
-	PackInterval time.Duration
-	MinPackSize  int
-	MaxPackSize  int
-	DebugAddr    string
+	DBURI             string
+	AccessGrant       string
+	Bucket            string
+	PackInterval      time.Duration
+	MinPackSize       int
+	MaxPackSize       int
+	DebugAddr         string
+	UpdateBloomFilter bool
 }
 
 func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
@@ -177,12 +178,12 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 	defer mon.Task()(&ctx)(&err)
 
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
-	// storj.log.Debug("GetSize requested", zap.Stringer("Key", key))
+	// log.Desugar().Debug("GetSize requested", zap.Stringer("Key", key))
 	// defer func() {
 	// 	if err != nil && !errors.Is(err, ds.ErrNotFound) {
-	// 		storj.log.Error("GetSize returned error", zap.Stringer("Key", key), zap.Error(err))
+	// 		log.Desugar().Error("GetSize returned error", zap.Stringer("Key", key), zap.Error(err))
 	// 	} else {
-	// 		storj.log.Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
+	// 		log.Desugar().Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
 	// 	}
 	// }()
 
