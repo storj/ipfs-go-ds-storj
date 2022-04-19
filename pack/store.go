@@ -61,7 +61,7 @@ func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset
 func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (packObjectKey string, cidOffs map[string]int, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	log.Desugar().Debug("Pack: blocks ready to pack", zap.Int("Count", len(blocks)))
+	log.Desugar().Debug("Blocks ready to pack", zap.Int("Count", len(blocks)))
 
 	packObjectKey = uuid.NewString()
 	pack, err := zipper.CreatePack(ctx, store.project, store.bucket, packObjectKey, nil)
@@ -69,7 +69,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (pa
 		return "", nil, Error.Wrap(err)
 	}
 
-	log.Desugar().Debug("Pack: created pending pack", zap.String("Object Key", packObjectKey))
+	log.Desugar().Debug("Created pending pack", zap.String("Object Key", packObjectKey))
 
 	cidOffs = make(map[string]int, len(blocks))
 	for cid, data := range blocks {
@@ -85,7 +85,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (pa
 			return "", nil, Error.Wrap(err)
 		}
 
-		log.Desugar().Debug("Pack: added block to pack",
+		log.Desugar().Debug("Added block to pack",
 			zap.String("CID", cid),
 			zap.Int("Size", len(data)),
 			zap.String("Object Key", packObjectKey),
@@ -97,7 +97,7 @@ func (store *Store) WritePack(ctx context.Context, blocks map[string][]byte) (pa
 		return "", nil, Error.Wrap(err)
 	}
 
-	log.Desugar().Debug("Pack: committed pack", zap.String("Object Key", packObjectKey))
+	log.Desugar().Debug("Committed pack", zap.String("Object Key", packObjectKey))
 
 	return packObjectKey, cidOffs, nil
 }

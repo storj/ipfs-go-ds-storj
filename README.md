@@ -128,7 +128,7 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `STORJ_DEBUG_ADDR` can be set to a specific `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints are disabled.
 
-`GOLOG_FILE` sets the location of the log file. If not set, the logs are printed to the standard error.
+`GOLOG_FILE` sets the log file location. If not set, the logs are printed to the standard error.
 
 `STORJ_LOG_LEVEL` sets the log level. The default level is ERROR. Use `storjds=<level>` to set the log level of only the Storj datastore plugin. See https://github.com/ipfs/go-log#golog_log_level for details.
 
