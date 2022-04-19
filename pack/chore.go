@@ -23,7 +23,6 @@ const (
 )
 
 type Chore struct {
-	log      *zap.Logger
 	db       *db.DB
 	packs    *Store
 	interval time.Duration
@@ -33,9 +32,8 @@ type Chore struct {
 	runOnce  sync.Once
 }
 
-func NewChore(log *zap.Logger, db *db.DB, packs *Store) *Chore {
+func NewChore(db *db.DB, packs *Store) *Chore {
 	return &Chore{
-		log:      log,
 		db:       db,
 		packs:    packs,
 		interval: DefaultInterval,
@@ -68,7 +66,7 @@ func (chore *Chore) Run(ctx context.Context) {
 	chore.runOnce.Do(func() {
 		// Don't run if the pack interval is negative.
 		if chore.interval < 0 {
-			chore.log.Info("Packing disabled")
+			log.Desugar().Info("Packing disabled")
 			return
 		}
 
@@ -77,7 +75,7 @@ func (chore *Chore) Run(ctx context.Context) {
 		go func() {
 			err := chore.loop.Run(ctx, chore.pack)
 			if err != nil {
-				chore.log.Error("Pack error", zap.Error(err))
+				log.Desugar().Error("Pack error", zap.Error(err))
 			}
 		}()
 	})
@@ -100,10 +98,10 @@ func (chore *Chore) TriggerWait() {
 func (chore *Chore) pack(ctx context.Context) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	chore.log.Debug("Pack")
+	log.Desugar().Debug("Pack")
 	defer func() {
 		if err != nil {
-			chore.log.Error("Pack error", zap.Error(err))
+			log.Desugar().Error("Pack error", zap.Error(err))
 		}
 	}()
 

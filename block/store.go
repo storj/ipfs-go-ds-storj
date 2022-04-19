@@ -12,7 +12,6 @@ import (
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
-	"go.uber.org/zap"
 
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/ipfs-go-ds-storj/pack"
@@ -30,12 +29,12 @@ type Store struct {
 	packer *pack.Chore
 }
 
-func NewStore(mount string, log *zap.Logger, db *db.DB, packs *pack.Store) *Store {
+func NewStore(mount string, db *db.DB, packs *pack.Store) *Store {
 	return &Store{
 		mount:  mount,
 		db:     db,
 		packs:  packs,
-		packer: pack.NewChore(log, db, packs),
+		packer: pack.NewChore(db, packs),
 	}
 }
 

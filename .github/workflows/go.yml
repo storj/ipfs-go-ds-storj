@@ -44,3 +44,4 @@ jobs:
       env:
         STORJ_TEST_POSTGRES: postgres://postgres:postgres@localhost/postgres?sslmode=disable
         STORJ_TEST_COCKROACH: cockroach://root@localhost:26257/defaultdb?sslmode=disable
+        GOLOG_LOG_LEVEL: storjds=debug

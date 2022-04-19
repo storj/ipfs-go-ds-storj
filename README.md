@@ -58,8 +58,6 @@ The `config` file should include the following:
         "dbURI": "$databaseURI",
         "bucket": "$bucketname",
         "accessGrant": "$accessGrant",
-        "logFile": "$pathToLogFile",
-        "logLevel": "$logLevel",
         "packInterval": "$packInterval",
         "debugAddr": "$debugAddr"
       },
@@ -73,10 +71,6 @@ The `config` file should include the following:
 `$bucketname` is a bucket on Storj DCS. It must be created.
 
 `$accessGrant` is an access grant for Storj DCS with full permission on the entire `$bucketname` bucket.
-
-The `logFile` config is optional. If set, it redirects the logging of this plugin to the specified file. Otherwise, logs are printed to the standard error.
-
-`$logLevel` is an optional log level. If not set, the log level defaults to INFO.
 
 `$packInterval` is an optional time duration that sets the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
@@ -104,10 +98,10 @@ docker run --rm -d \
     -e IPFS_GATEWAY_PORT=8080 \
     -e IPFS_API_PORT=5001 \
     -e IPFS_BLOOM_FILTER_SIZE=1048576 \
-    -e STORJ_LOG_FILE=/app/log/output.log \
-    -e STORJ_LOG_LEVEL=info \
     -e STORJ_PACK_INTERVAL=5m \
     -e STORJ_DEBUG_ADDR=<[host]:port> \
+    -e GOLOG_FILE=/app/log/output.log \
+    -e GOLOG_LOG_LEVEL="storjds=info" \
     --mount type=bind,source=<log-dir>,destination=/app/log \
     storjlabs/ipfs-go-ds-storj
 ```
@@ -130,13 +124,13 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
 
-If `STORJ_LOG_FILE` is not set, the logs are printed to the standard error.
-
-`STORJ_LOG_LEVEL` sets the log level. The default level is INFO. 
-
 `STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
 `STORJ_DEBUG_ADDR` can be set to a specific `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints are disabled.
+
+`GOLOG_FILE` sets the location of the log file. If not set, the logs are printed to the standard error.
+
+`STORJ_LOG_LEVEL` sets the log level. The default level is ERROR. Use `storjds=<level>` to set the log level of only the Storj datastore plugin. See https://github.com/ipfs/go-log#golog_log_level for details.
 
 ## License
 
