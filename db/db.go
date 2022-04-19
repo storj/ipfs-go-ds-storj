@@ -8,10 +8,10 @@ import (
 	"errors"
 	"strconv"
 
+	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
-	"go.uber.org/zap"
 
 	"storj.io/private/dbutil"
 	_ "storj.io/private/dbutil/cockroachutil" // registers cockroach as a tagsql driver.
@@ -21,13 +21,14 @@ import (
 
 var mon = monkit.Package()
 
+var log = logging.Logger("storjds").Named("db")
+
 // Error is the error class for datastore database.
 var Error = errs.Class("db")
 
 // DB is the datastore database for mapping IPFS blocks to Storj object packs.
 type DB struct {
 	tagsql.DB
-	log *zap.Logger
 }
 
 // Open creates instance of the database.
@@ -61,7 +62,7 @@ func Open(ctx context.Context, databaseURL string) (db *DB, err error) {
 func (db *DB) MigrateToLatest(ctx context.Context) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	err = db.Migration().Run(ctx, db.log)
+	err = db.Migration().Run(ctx, log.Desugar())
 
 	return Error.Wrap(err)
 }
@@ -102,14 +103,8 @@ func (db *DB) Migration() *migrate.Migration {
 // Wrap turns a tagsql.DB into a DB struct.
 func Wrap(db tagsql.DB) *DB {
 	return &DB{
-		DB:  postgresRebind{DB: db},
-		log: zap.NewNop(),
+		DB: postgresRebind{DB: db},
 	}
-}
-
-func (db *DB) WithLog(log *zap.Logger) *DB {
-	db.log = log
-	return db
 }
 
 // This is needed for migrate to work.

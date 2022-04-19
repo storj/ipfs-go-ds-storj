@@ -6,7 +6,6 @@ package plugin
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
@@ -14,16 +13,17 @@ import (
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/private/debug"
-	"storj.io/private/process"
 )
+
+var log = logging.Logger("storjds").Named("plugin")
 
 // Error is the error class for Storj datastore plugin.
 var Error = errs.Class("storjds")
@@ -39,7 +39,7 @@ func (plugin StorjPlugin) Name() string {
 }
 
 func (plugin StorjPlugin) Version() string {
-	return "0.1.0"
+	return "0.3.0"
 }
 
 func (plugin StorjPlugin) Init(env *plugin.Environment) error {
@@ -69,22 +69,6 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 
 		// Optional.
 
-		var logFile string
-		if v, ok := m["logFile"]; ok {
-			logFile, ok = v.(string)
-			if !ok {
-				return nil, Error.New("logFile not a string")
-			}
-		}
-
-		var logLevel string
-		if v, ok := m["logLevel"]; ok {
-			logLevel, ok = v.(string)
-			if !ok {
-				return nil, Error.New("logLevel not a string")
-			}
-		}
-
 		var packInterval time.Duration
 		if v, ok := m["packInterval"]; ok {
 			interval, ok := v.(string)
@@ -111,8 +95,6 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 				DBURI:        dbURI,
 				Bucket:       bucket,
 				AccessGrant:  accessGrant,
-				LogFile:      logFile,
-				LogLevel:     logLevel,
 				PackInterval: packInterval,
 				DebugAddr:    debugAddr,
 			},
@@ -133,12 +115,7 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	ctx := context.Background()
 
-	log, level, err := storj.initLogger()
-	if err != nil {
-		return nil, err
-	}
-
-	err = storj.initDebug(log, monkit.Default, level)
+	err := storj.initDebug()
 	if err != nil {
 		return nil, err
 	}
@@ -148,43 +125,15 @@ func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 		return nil, Error.New("failed to connect to cache database: %s", err)
 	}
 
-	db = db.WithLog(log)
-
 	err = db.MigrateToLatest(ctx)
 	if err != nil {
 		return nil, Error.New("failed to migrate database schema: %s", err)
 	}
 
-	return storjds.NewDatastore(context.Background(), log, db, storj.cfg)
+	return storjds.NewDatastore(context.Background(), db, storj.cfg)
 }
 
-func (storj *StorjConfig) initLogger() (log *zap.Logger, level *zap.AtomicLevel, err error) {
-	if len(storj.cfg.LogFile) == 0 {
-		log, level, err = process.NewLogger("ipfs-go-ds-storj")
-	} else {
-		log, level, err = process.NewLoggerWithOutputPathsAndAtomicLevel("ipfs-go-ds-storj", storj.cfg.LogFile)
-	}
-	if err != nil {
-		return nil, nil, Error.New("failed to initialize logger: %v", err)
-	}
-
-	if len(storj.cfg.LogLevel) == 0 {
-		level.SetLevel(zapcore.InfoLevel)
-		return log, level, nil
-	}
-
-	lvl := zapcore.Level(0)
-	err = lvl.Set(storj.cfg.LogLevel)
-	if err != nil {
-		return nil, nil, Error.New("failed to parse log level: %v", err)
-	}
-
-	level.SetLevel(lvl)
-
-	return log, level, nil
-}
-
-func (storj *StorjConfig) initDebug(log *zap.Logger, r *monkit.Registry, atomicLevel *zap.AtomicLevel) (err error) {
+func (storj *StorjConfig) initDebug() (err error) {
 	if len(storj.cfg.DebugAddr) == 0 {
 		return nil
 	}
@@ -202,13 +151,15 @@ func (storj *StorjConfig) initDebug(log *zap.Logger, r *monkit.Registry, atomicL
 	}
 
 	go func() {
-		server := debug.NewServerWithAtomicLevel(log, ln, r, debug.Config{
+		server := debug.NewServer(log.Desugar(), ln, monkit.Default, debug.Config{
 			Address: storj.cfg.DebugAddr,
-		}, atomicLevel)
-		log.Debug(fmt.Sprintf("debug server listening on %s", ln.Addr().String()))
+		})
+
+		log.Desugar().Debug("Debug server listening", zap.Stringer("Address", ln.Addr()))
+
 		err := server.Run(context.Background())
 		if err != nil {
-			log.Error("debug server died", zap.Error(err))
+			log.Desugar().Error("Debug server died", zap.Error(err))
 		}
 	}()
 

@@ -188,7 +188,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 		return nil, Error.Wrap(err)
 	}
 
-	db.log.Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
+	log.Desugar().Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
 
 	rows, err := db.DB.Query(ctx, `
 		SELECT cid, data
@@ -214,7 +214,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 		return nil, Error.Wrap(err)
 	}
 
-	db.log.Debug("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
+	log.Desugar().Debug("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
 
 	return blocks, nil
 }
@@ -258,7 +258,7 @@ func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidO
 			return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
 		}
 
-		db.log.Debug("UpdatePackedBlocks: updated block status as packed", zap.String("CID", cid), zap.Int("Offset", off))
+		log.Desugar().Debug("UpdatePackedBlocks: updated block status as packed", zap.String("CID", cid), zap.Int("Offset", off))
 	}
 
 	return nil
