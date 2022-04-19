@@ -39,9 +39,27 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 			HasErr: true,
 		},
 		{
+			// Required dbURI is empty
+			Input: map[string]interface{}{
+				"dbURI":       "",
+				"bucket":      "somebucket",
+				"accessGrant": "someaccessgrant",
+			},
+			HasErr: true,
+		},
+		{
 			// Required bucket fields missing
 			Input: map[string]interface{}{
 				"dbURI":       "somedburi",
+				"accessGrant": "someaccessgrant",
+			},
+			HasErr: true,
+		},
+		{
+			// Required bucket fields is empty
+			Input: map[string]interface{}{
+				"dbURI":       "somedburi",
+				"bucket":      "",
 				"accessGrant": "someaccessgrant",
 			},
 			HasErr: true,
@@ -51,6 +69,15 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 			Input: map[string]interface{}{
 				"dbURI":  "somedburi",
 				"bucket": "somebucket",
+			},
+			HasErr: true,
+		},
+		{
+			// Required accessGrant fields is empty
+			Input: map[string]interface{}{
+				"dbURI":       "somedburi",
+				"bucket":      "somebucket",
+				"accessGrant": "",
 			},
 			HasErr: true,
 		},

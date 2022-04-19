@@ -53,17 +53,17 @@ func (plugin StorjPlugin) DatastoreTypeName() string {
 func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 	return func(m map[string]interface{}) (fsrepo.DatastoreConfig, error) {
 		dbURI, ok := m["dbURI"].(string)
-		if !ok {
+		if !ok || len(dbURI) == 0 {
 			return nil, Error.New("no dbURI specified")
 		}
 
 		bucket, ok := m["bucket"].(string)
-		if !ok {
+		if !ok || len(bucket) == 0 {
 			return nil, Error.New("no bucket specified")
 		}
 
 		accessGrant, ok := m["accessGrant"].(string)
-		if !ok {
+		if !ok || len(accessGrant) == 0 {
 			return nil, Error.New("no accessGrant specified")
 		}
 
