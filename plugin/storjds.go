@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"reflect"
 	"time"
+	"unsafe"
 
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs/plugin"
@@ -151,9 +153,9 @@ func (storj *StorjConfig) initDebug() (err error) {
 	}
 
 	go func() {
-		server := debug.NewServer(log.Desugar(), ln, monkit.Default, debug.Config{
+		server := debug.NewServerWithAtomicLevel(log.Desugar(), ln, monkit.Default, debug.Config{
 			Address: storj.cfg.DebugAddr,
-		})
+		}, GetAtomicLevel())
 
 		log.Desugar().Debug("Debug server listening", zap.Stringer("Address", ln.Addr()))
 
@@ -164,4 +166,46 @@ func (storj *StorjConfig) initDebug() (err error) {
 	}()
 
 	return nil
+}
+
+func GetAtomicLevel() *zap.AtomicLevel {
+	level := getUnexportedField(log.Desugar().Core(), "level")
+	if level == nil {
+		return nil
+	}
+
+	atomic, ok := level.(zap.AtomicLevel)
+	if !ok {
+		log.Desugar().Warn("Could not obtain atomic log level")
+		return nil
+	}
+
+	return &atomic
+}
+
+func getUnexportedField(iface interface{}, name string) interface{} {
+	value := reflect.ValueOf(iface)
+	if value.Kind() != reflect.Interface && value.Kind() != reflect.Ptr {
+		log.Desugar().Debug("Interface kind is not interface or ptr", zap.Any("Kind", value.Kind()), zap.Any("Value", value))
+		return nil
+	}
+
+	elem := value.Elem()
+	if elem.Kind() != reflect.Struct {
+		log.Desugar().Debug("Elem kind is not struct", zap.Any("Kind", elem.Kind()), zap.Any("Elem", elem))
+		return nil
+	}
+
+	field := elem.FieldByName(name)
+	if field == (reflect.Value{}) {
+		log.Desugar().Debug("Zero reflect value for field", zap.String("Name", name))
+		return nil
+	}
+
+	if !field.CanAddr() {
+		log.Desugar().Debug("Field is not addressable", zap.Any(name, field))
+		return nil
+	}
+
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
 }
