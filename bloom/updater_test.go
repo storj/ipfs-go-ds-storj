@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Storj Labs, Inc.
+// Copyright (C) 2022 Storj Labs, Inc.
 // See LICENSE for copying information.
 
 package bloom_test
@@ -43,11 +43,11 @@ func TestBloomUpdater(t *testing.T) {
 			if bf.HasTS([]byte("abc")) {
 				return
 			}
-			if time.Since(start) > 10*time.Millisecond {
+			if time.Since(start) > 1*time.Second {
 				assert.Fail(t, "bloom filter not updated")
 				return
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 }
