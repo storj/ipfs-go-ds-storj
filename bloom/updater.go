@@ -128,6 +128,7 @@ func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error
 
 		cid := strings.Trim(key, "[\"]")
 
+		mon.Counter("bloom_filter_add").Inc(1)
 		log.Desugar().Debug("Updating bloom filter with CID", zap.String("CID", cid))
 
 		updater.bloom.AddIfNotHasTS([]byte(cid))
