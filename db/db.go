@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"strings"
+	"time"
 
 	logging "github.com/ipfs/go-log/v2"
 	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
@@ -98,6 +100,30 @@ func (db *DB) Migration() *migrate.Migration {
 			},
 		},
 	}
+}
+
+// GetCreatedTime returns the time when the database was created.
+func (db *DB) GetCreatedTime(ctx context.Context) (created time.Time, err error) {
+	var committedAt string
+
+	err = db.QueryRow(ctx, `
+		SELECT commited_at
+		FROM versions
+		WHERE version = 0
+	`).Scan(&committedAt)
+	if err != nil {
+		return time.Time{}, Error.Wrap(err)
+	}
+
+	// Trim the monolitic clock part
+	committedAt = strings.Split(committedAt, " m=")[0]
+
+	created, err = time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", committedAt)
+	if err != nil {
+		return time.Time{}, Error.Wrap(err)
+	}
+
+	return created, nil
 }
 
 // Wrap turns a tagsql.DB into a DB struct.

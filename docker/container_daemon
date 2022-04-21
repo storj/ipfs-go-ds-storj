@@ -47,7 +47,8 @@ else
 
   # Storj datastore config
   if [ ! -z $STORJ_PACK_INTERVAL ]; then CFG_PACK_INTERVAL=",\"packInterval\": \"$STORJ_PACK_INTERVAL\""; fi
-  ipfs config --json Datastore.Spec "{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\"$CFG_PACK_INTERVAL,\"debugAddr\": \"$STORJ_DEBUG_ADDR\"},\"prefix\": \"storj.datastore\",\"type\": \"measure\"}"
+  if [ -z $STORJ_UPDATE_BLOOM_FILTER ]; then STORJ_UPDATE_BLOOM_FILTER=false; fi
+  ipfs config --json Datastore.Spec "{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\"$CFG_PACK_INTERVAL,\"debugAddr\": \"$STORJ_DEBUG_ADDR\",\"updateBloomFilter\": \"$STORJ_UPDATE_BLOOM_FILTER\"},\"prefix\": \"storj.datastore\",\"type\": \"measure\"}"
   echo -e "{\"bucket\":\"$STORJ_BUCKET\"}" > $repo/datastore_spec
 
   # Set up the swarm key, if provided

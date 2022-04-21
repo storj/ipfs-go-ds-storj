@@ -84,18 +84,20 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Optional fields included
 			Input: map[string]interface{}{
-				"dbURI":        "somedburi",
-				"bucket":       "somebucket",
-				"accessGrant":  "someaccessgrant",
-				"packInterval": "3m",
-				"debugAddr":    "somedebugaddr",
+				"dbURI":             "somedburi",
+				"bucket":            "somebucket",
+				"accessGrant":       "someaccessgrant",
+				"packInterval":      "3m",
+				"debugAddr":         "somedebugaddr",
+				"updateBloomFilter": "true",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
-				DBURI:        "somedburi",
-				Bucket:       "somebucket",
-				AccessGrant:  "someaccessgrant",
-				PackInterval: 3 * time.Minute,
-				DebugAddr:    "somedebugaddr",
+				DBURI:             "somedburi",
+				Bucket:            "somebucket",
+				AccessGrant:       "someaccessgrant",
+				PackInterval:      3 * time.Minute,
+				DebugAddr:         "somedebugaddr",
+				UpdateBloomFilter: true,
 			}},
 		},
 		{
@@ -105,6 +107,16 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 				"bucket":       "somebucket",
 				"accessGrant":  "someaccessgrant",
 				"packInterval": "3",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid updateBloomFilter format
+			Input: map[string]interface{}{
+				"dbURI":             "somedburi",
+				"bucket":            "somebucket",
+				"accessGrant":       "someaccessgrant",
+				"updateBloomFilter": "yes",
 			},
 			HasErr: true,
 		},

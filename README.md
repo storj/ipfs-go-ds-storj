@@ -59,7 +59,8 @@ The `config` file should include the following:
         "bucket": "$bucketname",
         "accessGrant": "$accessGrant",
         "packInterval": "$packInterval",
-        "debugAddr": "$debugAddr"
+        "debugAddr": "$debugAddr",
+        "updateBloomFilter": "$updateBloomFilter"
       },
       "prefix": "storj.datastore",
       "type": "measure"
@@ -75,6 +76,8 @@ The `config` file should include the following:
 `$packInterval` is an optional time duration that sets the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
 `$debugAddr` is an optional `[host]:port` address to listen on for the debug endpoints. If not set, the debug endpoints are disabled.
+
+`$updateBloomFilter` is an optional boolean that enables the bloom filter updater. If not set, the updater is disabled.
 
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
@@ -98,6 +101,7 @@ docker run --rm -d \
     -e IPFS_GATEWAY_PORT=8080 \
     -e IPFS_API_PORT=5001 \
     -e IPFS_BLOOM_FILTER_SIZE=1048576 \
+    -e STORJ_UPDATE_BLOOM_FILTER=true \
     -e STORJ_PACK_INTERVAL=5m \
     -e STORJ_DEBUG_ADDR=<[host]:port> \
     -e GOLOG_FILE=/app/log/output.log \
@@ -123,6 +127,8 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 `IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
 
 `IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
+
+`STORJ_UPDATE_BLOOM_FILTER` enables the bloom filter updater, which listens to changes in the local database and updates the datastore bloom filter. The default value is false. It should be enabled when running multiple nodes attached to the same datastore. Only CockroachDB is supported.
 
 `STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
 
