@@ -4,8 +4,12 @@ ENV GO111MODULE=on
 
 WORKDIR /go-ipfs
 
+COPY build/disable-blockstore-arc-cache.patch /patches/
+
 RUN git clone https://github.com/ipfs/go-ipfs . && \
-    git checkout v0.12.2
+    git checkout v0.12.2 && \
+    # Apply a patch for disabling the blockstore ARC cache
+    git apply /patches/disable-blockstore-arc-cache.patch
 
 COPY . /go-ipfs/ipfs-go-ds-storj
 
