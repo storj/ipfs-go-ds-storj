@@ -1,0 +1,13 @@
+diff --git a/core/node/groups.go b/core/node/groups.go
+index 8036715..468662e 100644
+--- a/core/node/groups.go
++++ b/core/node/groups.go
+@@ -182,6 +182,8 @@
+ 		cacheOpts.HasBloomFilterSize = 0
+ 	}
+ 
++	cacheOpts.HasARCCacheSize = 0
++
+ 	finalBstore := fx.Provide(GcBlockstoreCtor)
+ 	if cfg.Experimental.FilestoreEnabled || cfg.Experimental.UrlstoreEnabled {
+ 		finalBstore = fx.Provide(FilestoreBlockstoreCtor)
