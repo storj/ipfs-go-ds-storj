@@ -136,7 +136,7 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `GOLOG_FILE` sets the log file location. If not set, the logs are printed to the standard error.
 
-`STORJ_LOG_LEVEL` sets the log level. The default level is ERROR. Use `storjds=<level>` to set the log level of only the Storj datastore plugin. See https://github.com/ipfs/go-log#golog_log_level for details.
+`GOLOG_LOG_LEVEL` sets the log level. The default level is ERROR. Use `storjds=<level>` to set the log level of only the Storj datastore plugin. See https://github.com/ipfs/go-log#golog_log_level for details.
 
 ## License
 
