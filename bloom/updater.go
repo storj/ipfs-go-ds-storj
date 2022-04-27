@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/ipfs/bbloom"
+	ds "github.com/ipfs/go-datastore"
+	dshelp "github.com/ipfs/go-ipfs-ds-help"
 	logging "github.com/ipfs/go-log"
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
@@ -104,7 +106,7 @@ func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error
 	}
 
 	// TODO: for some reason variable bind does not work
-	rows, err := db.Query(context.TODO(), `
+	rows, err := db.Query(ctx, `
 		EXPERIMENTAL CHANGEFEED
 		FOR blocks
 		WITH
@@ -128,10 +130,15 @@ func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error
 
 		cid := strings.Trim(key, "[\"]")
 
+		binary, err := dshelp.BinaryFromDsKey(ds.NewKey(cid))
+		if err != nil {
+			return Error.Wrap(err)
+		}
+
 		mon.Counter("bloom_filter_add").Inc(1)
 		log.Desugar().Debug("Updating bloom filter with CID", zap.String("CID", cid))
 
-		updater.bloom.AddIfNotHasTS([]byte(cid))
+		updater.bloom.AddIfNotHasTS(binary)
 	}
 
 	return Error.Wrap(rows.Err())
