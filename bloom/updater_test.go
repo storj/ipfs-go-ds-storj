@@ -26,6 +26,10 @@ func TestBloomUpdater(t *testing.T) {
 			t.Skipf("%s not supported", tempDB.Implementation)
 		}
 
+		// Required for the proper execution of the changefeed
+		_, err := db.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true`)
+		require.NoError(t, err)
+
 		bf, err := bbloom.New(float64(1024), float64(7))
 		require.NoError(t, err)
 
