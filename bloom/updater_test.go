@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/ipfs/bbloom"
+	dshelp "github.com/ipfs/go-ipfs-ds-help"
+	mh "github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,15 +34,19 @@ func TestBloomUpdater(t *testing.T) {
 
 		updater.Run(ctx)
 
-		require.False(t, bf.HasTS([]byte("abc")))
+		b58Hash := "QmVAXDpe8PKRxScTdZ6nMYpBVwU9EV5CwefQhyBVrWPvzb"
+		multihash, err := mh.FromB58String(b58Hash)
+		require.NoError(t, err)
 
-		err = db.PutBlock(ctx, "abc", nil)
+		require.False(t, bf.HasTS(multihash))
+
+		err = db.PutBlock(ctx, dshelp.MultihashToDsKey(multihash).Name(), nil)
 		require.NoError(t, err)
 
 		// Check for up to a second if the bloom filter has been updated
 		start := time.Now()
 		for {
-			if bf.HasTS([]byte("abc")) {
+			if bf.HasTS(multihash) {
 				return
 			}
 			if time.Since(start) > 1*time.Second {
