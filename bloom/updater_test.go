@@ -27,7 +27,7 @@ func TestBloomUpdater(t *testing.T) {
 		}
 
 		// Required for the proper execution of the changefeed
-		_, err := db.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true`)
+		_, err := db.ExecContext(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true`)
 		require.NoError(t, err)
 
 		bf, err := bbloom.New(float64(1024), float64(7))

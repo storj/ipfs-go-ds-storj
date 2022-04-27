@@ -29,7 +29,7 @@ type Block struct {
 func (db *DB) PutBlock(ctx context.Context, cid string, value []byte) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	result, err := db.Exec(ctx, `
+	result, err := db.ExecContext(ctx, `
 		INSERT INTO blocks (cid, size, data)
 		VALUES ($1, $2, $3)
 		ON CONFLICT(cid)
@@ -57,7 +57,7 @@ func (db *DB) GetBlock(ctx context.Context, cid string) (block *Block, err error
 		CID: cid,
 	}
 
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT
 			size, data, deleted,
 			pack_status, pack_object, pack_offset
@@ -85,7 +85,7 @@ func (db *DB) HasBlock(ctx context.Context, cid string) (exists bool, err error)
 	defer mon.Task()(&ctx)(&err)
 
 	var deleted bool
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT deleted
 		FROM blocks
 		WHERE cid = $1
@@ -106,7 +106,7 @@ func (db *DB) GetBlockSize(ctx context.Context, cid string) (size int, err error
 	defer mon.Task()(&ctx)(&err)
 
 	var deleted bool
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT size, deleted
 		FROM blocks
 		WHERE cid = $1
@@ -142,14 +142,14 @@ func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 		err = tx.Commit()
 	}()
 
-	_, err = tx.Exec(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		DELETE FROM blocks
 		WHERE
 			cid = $1 AND
 			pack_status = 0;
 	`, cid)
 
-	_, err = tx.Exec(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		UPDATE blocks
 		SET deleted = true
 		WHERE
@@ -163,7 +163,7 @@ func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks map[string][]byte, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	result, err := db.Exec(ctx, `
+	result, err := db.ExecContext(ctx, `
 		WITH next_pack AS (
 			SELECT b.cid, sum(b2.size) AS sums
 			FROM blocks b
@@ -190,7 +190,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 
 	log.Desugar().Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
 
-	rows, err := db.DB.Query(ctx, `
+	rows, err := db.QueryContext(ctx, `
 		SELECT cid, data
 		FROM blocks
 		WHERE
@@ -235,7 +235,7 @@ func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidO
 	}()
 
 	for cid, off := range cidOffs {
-		result, err := tx.Exec(ctx, `
+		result, err := tx.ExecContext(ctx, `
 			UPDATE blocks
 			SET
 				pack_status = `+packedStatus+`, 
