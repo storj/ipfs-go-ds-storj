@@ -13,7 +13,7 @@ import (
 func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	result, err := db.Exec(ctx, `
+	result, err := db.ExecContext(ctx, `
 		INSERT INTO datastore (key, data)
 		VALUES ($1, $2)
 		ON CONFLICT(key)
@@ -37,7 +37,7 @@ func (db *DB) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
 func (db *DB) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT data
 		FROM datastore
 		WHERE key = $1
@@ -54,7 +54,7 @@ func (db *DB) Get(ctx context.Context, key ds.Key) (data []byte, err error) {
 func (db *DB) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT exists(
 			SELECT 1
 			FROM datastore
@@ -73,7 +73,7 @@ func (db *DB) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
 func (db *DB) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	err = db.QueryRow(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT octet_length(data)
 		FROM datastore
 		WHERE key = $1
@@ -90,7 +90,7 @@ func (db *DB) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
 func (db *DB) Delete(ctx context.Context, key ds.Key) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	_, err = db.Exec(ctx, `
+	_, err = db.ExecContext(ctx, `
 		DELETE FROM datastore
 		WHERE key = $1
 	`, key.String())
@@ -128,7 +128,7 @@ func (db *DB) QueryDatastore(ctx context.Context, q dsq.Query) (result dsq.Resul
 		}
 	}
 
-	rows, err := db.Query(ctx, sql)
+	rows, err := db.QueryContext(ctx, sql)
 	if err != nil {
 		return nil, err
 	}

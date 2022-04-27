@@ -136,7 +136,7 @@ func (store *Store) Query(ctx context.Context, q dsq.Query) (result dsq.Results,
 		}
 	}
 
-	rows, err := store.db.Query(ctx, sql)
+	rows, err := store.db.QueryContext(ctx, sql)
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}

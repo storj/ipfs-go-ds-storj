@@ -100,7 +100,7 @@ func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error
 	}
 
 	// TODO: for some reason variable bind does not work
-	rows, err := db.Query(ctx, `
+	rows, err := db.QueryContext(ctx, `
 		EXPERIMENTAL CHANGEFEED
 		FOR blocks
 		WITH
