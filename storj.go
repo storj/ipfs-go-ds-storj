@@ -11,6 +11,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	bs "github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
@@ -61,7 +62,7 @@ func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, erro
 	}
 
 	packs := pack.NewStore(project, conf.Bucket)
-	blocks := block.NewStore("/blocks", db, packs).
+	blocks := block.NewStore(bs.BlockPrefix.String(), db, packs).
 		WithPackInterval(conf.PackInterval).
 		WithPackSize(conf.MinPackSize, conf.MaxPackSize)
 
@@ -225,7 +226,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 		}
 	}()
 
-	if strings.HasPrefix(q.Prefix, "/blocks") {
+	if strings.HasPrefix(q.Prefix, bs.BlockPrefix.String()) {
 		return storj.blocks.Query(ctx, q)
 	}
 
@@ -256,11 +257,7 @@ func (storj *Datastore) Close() error {
 }
 
 func isBlockKey(key ds.Key) bool {
-	ns := key.Namespaces()
-	if len(ns) < 1 {
-		return false
-	}
-	return ns[0] == "blocks"
+	return bs.BlockPrefix.IsAncestorOf(key)
 }
 
 func trimFirstNamespace(key ds.Key) ds.Key {
