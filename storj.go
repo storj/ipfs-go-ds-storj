@@ -257,7 +257,7 @@ func (storj *Datastore) Close() error {
 }
 
 func isBlockKey(key ds.Key) bool {
-	return bs.BlockPrefix.IsAncestorOf(key)
+	return bs.BlockPrefix == key || bs.BlockPrefix.IsAncestorOf(key)
 }
 
 func trimFirstNamespace(key ds.Key) ds.Key {
