@@ -10,6 +10,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/jackc/pgx/v4 v4.13.0
+	github.com/lib/pq v1.10.2 // indirect
 	github.com/multiformats/go-multihash v0.1.0
 	github.com/spacemonkeygo/monkit/v3 v3.0.17
 	github.com/stretchr/testify v1.7.0

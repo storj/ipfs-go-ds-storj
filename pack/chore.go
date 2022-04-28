@@ -98,7 +98,7 @@ func (chore *Chore) TriggerWait() {
 func (chore *Chore) pack(ctx context.Context) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	log.Desugar().Debug("Pack")
+	log.Desugar().Info("Pack")
 	defer func() {
 		if err != nil {
 			log.Desugar().Error("Pack error", zap.Error(err))

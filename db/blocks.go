@@ -6,6 +6,7 @@ import (
 	"context"
 
 	ds "github.com/ipfs/go-datastore"
+	"github.com/lib/pq"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 )
@@ -163,32 +164,61 @@ func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks map[string][]byte, err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	result, err := db.ExecContext(ctx, `
-		WITH next_pack AS (
-			SELECT b.cid, sum(b2.size) AS sums
-			FROM blocks b
-			INNER JOIN blocks b2 ON b.pack_status=b2.pack_status AND b2.created <= b.created
-			WHERE b.pack_status = `+unpackedStatus+`
-			GROUP BY b.cid
-			HAVING sum(b2.size) <= $1
-			ORDER BY b.created ASC
-		)
-		UPDATE blocks
-		SET pack_status = `+packingStatus+`
-		WHERE 
-			$2 <= (SELECT max(sums) FROM next_pack) AND
-			cid IN (SELECT cid FROM next_pack)
-	`, maxSize, minSize)
+	err = func() error {
+		rows, err := db.QueryContext(ctx, `
+			SELECT cid, size
+			FROM blocks
+			WHERE pack_status = 0
+			ORDER BY created ASC
+		`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		var cids []string
+		var totalSize int
+		for rows.Next() {
+			var cid string
+			var size int
+			if err := rows.Scan(&cid, &size); err != nil {
+				return err
+			}
+
+			cids = append(cids, cid)
+			totalSize += size
+
+			if totalSize >= minSize {
+				break
+			}
+		}
+
+		if totalSize < minSize {
+			log.Desugar().Info("QueryNextPack: not enough blocks to pack", zap.Int("minSize", minSize), zap.Int("totalSize", totalSize))
+			return nil
+		}
+
+		result, err := db.ExecContext(ctx, `
+			UPDATE blocks
+			SET pack_status = `+packingStatus+`
+			WHERE cid = ANY($1)
+		`, pq.Array(cids))
+		if err != nil {
+			return err
+		}
+
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+
+		log.Desugar().Info("QueryNextPack", zap.Int64("Affected Rows", affected))
+
+		return nil
+	}()
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	log.Desugar().Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT cid, data
@@ -214,7 +244,7 @@ func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks m
 		return nil, Error.Wrap(err)
 	}
 
-	log.Desugar().Debug("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
+	log.Desugar().Info("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
 
 	return blocks, nil
 }
@@ -233,6 +263,8 @@ func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidO
 		}
 		err = tx.Commit()
 	}()
+
+	log.Desugar().Info("UpdatePackedBlocks: updating block status as packed", zap.String("packObjectKey", packObjectKey))
 
 	for cid, off := range cidOffs {
 		result, err := tx.ExecContext(ctx, `
