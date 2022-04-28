@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	ds "github.com/ipfs/go-datastore"
+	bs "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -55,7 +56,7 @@ func runPackTest(t *testing.T, initPackStatus func(ctx *testcontext.Context, sto
 		initPackStatus(ctx, storj)
 
 		// Sync starts the pack chore
-		err := storj.Sync(ctx, ds.NewKey(""))
+		err := storj.Sync(ctx, bs.BlockPrefix)
 		require.NoError(t, err)
 
 		storj.TriggerWaitPacker()
