@@ -86,6 +86,12 @@ func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error
 	}
 	defer db.Close()
 
+	// Required for the proper execution of the changefeed
+	_, err = db.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true`)
+	if err != nil {
+		return Error.New("failed to enable kv.rangefeed.enabled cluster setting: %s", err)
+	}
+
 	dbCreatedTime, err := db.GetCreatedTime(ctx)
 	if err != nil {
 		return Error.Wrap(err)
