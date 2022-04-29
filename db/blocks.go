@@ -8,9 +8,15 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+
+	"storj.io/private/dbutil/pgutil"
 )
 
 const (
+	UnpackedStatus = 0
+	PackingStatus  = 1
+	PackedStatus   = 2
+
 	unpackedStatus = "0"
 	packingStatus  = "1"
 	packedStatus   = "2"
@@ -158,6 +164,145 @@ func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 	`, cid)
 
 	return Error.Wrap(err)
+}
+
+func (db *DB) GetNotPackedBlocksTotalSize(ctx context.Context) (unpackedSize, packingSize int64, err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT pack_status, sum(size)
+		FROM blocks
+		WHERE
+			pack_status < `+packedStatus+`
+		GROUP BY pack_status
+	`)
+	if err != nil {
+		return -1, -1, Error.Wrap(err)
+	}
+	defer rows.Close()
+
+	var status int
+	var sum int64
+
+	for rows.Next() {
+		if err := rows.Scan(&status, &sum); err != nil {
+			return -1, -1, Error.Wrap(err)
+		}
+
+		switch status {
+		case UnpackedStatus:
+			unpackedSize = sum
+		case PackingStatus:
+			packingSize = sum
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return -1, -1, Error.Wrap(err)
+	}
+
+	return unpackedSize, packingSize, nil
+}
+
+func (db *DB) QueryPackingBlocksData(ctx context.Context, result map[string][]byte) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT cid, data
+		FROM blocks
+		WHERE
+			pack_status = `+packingStatus+`
+	`)
+	if err != nil {
+		return Error.Wrap(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid string
+		var data []byte
+		if err := rows.Scan(&cid, &data); err != nil {
+			return Error.Wrap(err)
+		}
+		result[cid] = data
+	}
+	if err = rows.Err(); err != nil {
+		return Error.Wrap(err)
+	}
+
+	return nil
+}
+
+func (db *DB) QueryUnpackedBlocksData(ctx context.Context, cids []string, result map[string][]byte) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	rows, err := db.QueryContext(ctx, `
+		UPDATE blocks
+		SET
+			pack_status = `+packingStatus+`
+		WHERE
+			pack_status = `+unpackedStatus+` AND
+			cid = ANY($1)
+		RETURNING
+			cid, data
+	`, pgutil.TextArray(cids))
+	if err != nil {
+		return Error.Wrap(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid string
+		var data []byte
+		if err := rows.Scan(&cid, &data); err != nil {
+			return Error.Wrap(err)
+		}
+		result[cid] = data
+	}
+	if err = rows.Err(); err != nil {
+		return Error.Wrap(err)
+	}
+
+	return nil
+}
+
+func (db *DB) GetUnpackedBlocksUpToMaxSize(ctx context.Context, maxSize int) (cids []string, err error) {
+	defer mon.Task()(&ctx)(&err)
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT cid, size
+		FROM blocks
+		WHERE
+			pack_status = `+unpackedStatus+`
+		ORDER BY created ASC
+	`)
+	if err != nil {
+		return nil, Error.Wrap(err)
+	}
+	defer rows.Close()
+
+	var (
+		cid       string
+		size      int
+		totalSize int
+	)
+
+	for rows.Next() {
+		if err := rows.Scan(&cid, &size); err != nil {
+			return nil, Error.Wrap(err)
+		}
+
+		totalSize += size
+		if totalSize > maxSize {
+			break
+		}
+
+		cids = append(cids, cid)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, Error.Wrap(err)
+	}
+
+	return cids, nil
 }
 
 func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks map[string][]byte, err error) {

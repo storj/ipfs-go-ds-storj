@@ -3,10 +3,12 @@
 
 package pack
 
+import "storj.io/ipfs-go-ds-storj/db"
+
 type Status int
 
 const (
-	Unpacked = Status(0)
-	Packing  = Status(1)
-	Packed   = Status(2)
+	Unpacked = Status(db.UnpackedStatus)
+	Packing  = Status(db.PackingStatus)
+	Packed   = Status(db.PackedStatus)
 )

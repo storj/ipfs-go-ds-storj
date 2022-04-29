@@ -106,13 +106,51 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 	}()
 
 	for {
-		blocks, err := chore.db.QueryNextPack(ctx, chore.minSize, chore.maxSize)
+		unpackedSize, packingSize, err := chore.db.GetNotPackedBlocksTotalSize(ctx)
 		if err != nil {
 			return Error.Wrap(err)
 		}
 
+		log.Desugar().Debug("Blocks pending packing",
+			zap.Int64("Unpacked size", unpackedSize),
+			zap.Int64("Packing size", packingSize),
+			zap.Int64("Total size", unpackedSize+packingSize),
+			zap.Int("Min required", chore.minSize),
+		)
+
+		if unpackedSize+packingSize < int64(chore.minSize) {
+			return nil
+		}
+
+		blocks := make(map[string][]byte)
+
+		// First query any stalled blocks in packing status.
+		if packingSize > 0 {
+			err := chore.db.QueryPackingBlocksData(ctx, blocks)
+			if err != nil {
+				return Error.Wrap(err)
+			}
+			log.Desugar().Debug("Queried stalled blocks with packing status", zap.Int("Count", len(blocks)))
+		}
+
+		// Then fill up any remaining space in the pack with unpacked blocks.
+		if unpackedSize > 0 && packingSize < int64(chore.maxSize) {
+			cids, err := chore.db.GetUnpackedBlocksUpToMaxSize(ctx, chore.maxSize-int(packingSize))
+			if err != nil {
+				return Error.Wrap(err)
+			}
+
+			if len(cids) > 0 {
+				err = chore.db.QueryUnpackedBlocksData(ctx, cids, blocks)
+				if err != nil {
+					return Error.Wrap(err)
+				}
+			}
+		}
+
+		// Final sanity check before the pack (in case the blocks have been deleted while querying).
 		if len(blocks) == 0 {
-			// unpacked blocks are not enough for a new pack
+			log.Desugar().Debug("No blocks to pack")
 			return nil
 		}
 
