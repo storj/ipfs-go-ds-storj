@@ -28,7 +28,11 @@ func TestPack_HappyPath(t *testing.T) {
 func TestPack_ContinueInterrupted(t *testing.T) {
 	runPackTest(t, func(ctx *testcontext.Context, storj *storjds.Datastore) {
 		// Simulate interrupted packing by setting the next batch to packing status
-		blocks, err := storj.DB().QueryNextPack(ctx, storj.MinPackSize, storj.MaxPackSize)
+		cids, err := storj.DB().GetUnpackedBlocksUpToMaxSize(ctx, storj.MaxPackSize)
+		require.NoError(t, err)
+
+		blocks := make(map[string][]byte)
+		err = storj.DB().QueryUnpackedBlocksData(ctx, cids, blocks)
 		require.NoError(t, err)
 		require.Len(t, blocks, 8)
 	})

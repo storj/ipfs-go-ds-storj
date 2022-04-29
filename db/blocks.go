@@ -305,65 +305,6 @@ func (db *DB) GetUnpackedBlocksUpToMaxSize(ctx context.Context, maxSize int) (ci
 	return cids, nil
 }
 
-func (db *DB) QueryNextPack(ctx context.Context, minSize, maxSize int) (blocks map[string][]byte, err error) {
-	defer mon.Task()(&ctx)(&err)
-
-	result, err := db.ExecContext(ctx, `
-		WITH next_pack AS (
-			SELECT b.cid, sum(b2.size) AS sums
-			FROM blocks b
-			INNER JOIN blocks b2 ON b.pack_status=b2.pack_status AND b2.created <= b.created
-			WHERE b.pack_status = `+unpackedStatus+`
-			GROUP BY b.cid
-			HAVING sum(b2.size) <= $1
-			ORDER BY b.created ASC
-		)
-		UPDATE blocks
-		SET pack_status = `+packingStatus+`
-		WHERE 
-			$2 <= (SELECT max(sums) FROM next_pack) AND
-			cid IN (SELECT cid FROM next_pack)
-	`, maxSize, minSize)
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	log.Desugar().Debug("QueryNextPack", zap.Int64("Affected Rows", affected))
-
-	rows, err := db.QueryContext(ctx, `
-		SELECT cid, data
-		FROM blocks
-		WHERE
-			pack_status = `+packingStatus+`
-	`)
-	if err != nil {
-		return nil, Error.Wrap(err)
-	}
-	defer rows.Close()
-
-	blocks = make(map[string][]byte)
-	for rows.Next() {
-		var cid string
-		var data []byte
-		if err := rows.Scan(&cid, &data); err != nil {
-			return nil, Error.Wrap(err)
-		}
-		blocks[cid] = data
-	}
-	if err = rows.Err(); err != nil {
-		return nil, Error.Wrap(err)
-	}
-
-	log.Desugar().Debug("QueryNextPack", zap.Int("Pending Blocks", len(blocks)))
-
-	return blocks, nil
-}
-
 func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
