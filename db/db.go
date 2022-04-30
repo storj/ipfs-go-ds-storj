@@ -98,6 +98,14 @@ func (db *DB) Migration() *migrate.Migration {
 					)`,
 				},
 			},
+			{
+				DB:          &db.DB,
+				Description: "Index to optimize packing",
+				Version:     1,
+				Action: migrate.SQL{
+					`CREATE INDEX IF NOT EXISTS blocks_size_created_status_index ON blocks ( size, created, pack_status )`,
+				},
+			},
 		},
 	}
 }
