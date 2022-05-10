@@ -23,3 +23,12 @@ func TestGetCreatedTime(t *testing.T) {
 		assert.WithinDuration(t, time.Now(), created, 1*time.Second)
 	})
 }
+
+// DeleteAll deletes all data from database.
+type DeleteAll struct{}
+
+// Check runs the test.
+func (step DeleteAll) Check(ctx *testcontext.Context, t testing.TB, db *db.DB) {
+	err := db.TestingDeleteAll(ctx)
+	require.NoError(t, err)
+}
