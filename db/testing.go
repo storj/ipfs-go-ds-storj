@@ -9,8 +9,7 @@ import (
 // TestingDeleteAll deletes all data from the database.
 func (db *DB) TestingDeleteAll(ctx context.Context) (err error) {
 	_, err = db.ExecContext(ctx, `
-		DELETE FROM blocks;
-		DELETE FROM datastore;
+		TRUNCATE blocks, datastore
 	`)
 	return Error.Wrap(err)
 }
