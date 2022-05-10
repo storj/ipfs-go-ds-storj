@@ -3,6 +3,7 @@ module storj.io/ipfs-go-ds-storj
 require (
 	github.com/google/uuid v1.3.0
 	github.com/ipfs/bbloom v0.0.4
+	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ipfs v0.12.2
 	github.com/ipfs/go-ipfs-blockstore v1.1.2
