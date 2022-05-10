@@ -31,9 +31,21 @@ type PutBlock struct {
 	Data []byte
 }
 
-// Check runs the test.
+// Check runs the test step.
 func (step PutBlock) Check(ctx *testcontext.Context, t testing.TB, db *db.DB) {
 	err := db.PutBlock(ctx, step.CID, step.Data)
+	require.NoError(t, err)
+}
+
+// UpdateBlockPackStatus updates the block pack status.
+type UpdateBlockPackStatus struct {
+	CID       string
+	NewStatus pack.Status
+}
+
+// Check runs the test step.
+func (step UpdateBlockPackStatus) Check(ctx *testcontext.Context, t testing.TB, db *db.DB) {
+	err := db.TestingUpdateBlockPackStatus(ctx, step.CID, int(step.NewStatus))
 	require.NoError(t, err)
 }
 
@@ -72,31 +84,15 @@ func PutRandomBlocks(ctx *testcontext.Context, t testing.TB, db *db.DB, count in
 		t.Fatalf("unexpected status: %d", status)
 	}
 
-	var cids []string
-	cidOffs := make(map[string]int)
 	for i := 0; i < count; i++ {
 		cid := PutRandomBlock(ctx, t, db, size)
-		cids = append(cids, cid)
-		cidOffs[cid] = i * size
+		if status != pack.Unpacked {
+			UpdateBlockPackStatus{
+				CID:       cid,
+				NewStatus: status,
+			}.Check(ctx, t, db)
+		}
 	}
-
-	if status == pack.Unpacked {
-		return
-	}
-
-	// update block status to Packing
-	blocks := make(map[string][]byte)
-	err := db.QueryUnpackedBlocksData(ctx, cids, blocks)
-	require.NoError(t, err)
-	require.Len(t, blocks, count)
-
-	if status == pack.Packing {
-		return
-	}
-
-	// update block status to Packed
-	err = db.UpdatePackedBlocks(ctx, testrand.UUID().String(), cidOffs)
-	require.NoError(t, err)
 }
 
 func TestGetNotPackedBlocksTotalSize(t *testing.T) {
