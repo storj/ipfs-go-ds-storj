@@ -67,7 +67,7 @@ func PutRandomBlock(ctx *testcontext.Context, t testing.TB, db *db.DB, size int)
 }
 
 // PutRandomBlocks adds Count blocks to the datastore and updates their status.
-func PutRandomBlocks(ctx *testcontext.Context, t testing.TB, db *db.DB, count int, status pack.Status) {
+func PutRandomBlocks(ctx *testcontext.Context, t testing.TB, db *db.DB, count int, status pack.Status) (cids []string) {
 	if count <= 0 {
 		return
 	}
@@ -86,6 +86,8 @@ func PutRandomBlocks(ctx *testcontext.Context, t testing.TB, db *db.DB, count in
 
 	for i := 0; i < count; i++ {
 		cid := PutRandomBlock(ctx, t, db, size)
+		cids = append(cids, cid)
+
 		if status != pack.Unpacked {
 			UpdateBlockPackStatus{
 				CID:       cid,
@@ -93,51 +95,71 @@ func PutRandomBlocks(ctx *testcontext.Context, t testing.TB, db *db.DB, count in
 			}.Check(ctx, t, db)
 		}
 	}
+
+	return cids
 }
 
 func TestGetNotPackedBlocksTotalSize(t *testing.T) {
 	testutil.RunDBTest(t, func(t *testing.T, ctx *testcontext.Context, tempDB *dbutil.TempDatabase, db *db.DB) {
 		for _, tt := range []struct {
-			name          string
-			unpackedCount int
-			packingCount  int
-			packedCount   int
+			name                 string
+			unpackedCount        int
+			packingCount         int
+			packedCount          int
+			expectedUnpackedSize int
+			expectedPackingSize  int
 		}{
 			{
-				name: "no blocks",
+				name:                 "no blocks",
+				expectedUnpackedSize: 0,
+				expectedPackingSize:  0,
 			},
 			{
-				name:          "only unpacked blocks",
-				unpackedCount: 3,
+				name:                 "only unpacked blocks",
+				unpackedCount:        2,
+				expectedUnpackedSize: 2 * unpackedBlockSize,
+				expectedPackingSize:  0,
 			},
 			{
-				name:         "only packing blocks",
-				packingCount: 3,
+				name:                 "only packing blocks",
+				packingCount:         3,
+				expectedUnpackedSize: 0,
+				expectedPackingSize:  3 * packingBlockSize,
 			},
 			{
-				name:        "only packed blocks",
-				packedCount: 3,
+				name:                 "only packed blocks",
+				packedCount:          4,
+				expectedUnpackedSize: 0,
+				expectedPackingSize:  0,
 			},
 			{
-				name:          "unpacked and packing blocks",
-				unpackedCount: 3,
-				packingCount:  3,
+				name:                 "unpacked and packing blocks",
+				unpackedCount:        2,
+				packingCount:         3,
+				expectedUnpackedSize: 2 * unpackedBlockSize,
+				expectedPackingSize:  3 * packingBlockSize,
 			},
 			{
-				name:          "unpacked and packed blocks",
-				unpackedCount: 3,
-				packedCount:   3,
+				name:                 "unpacked and packed blocks",
+				unpackedCount:        2,
+				packedCount:          4,
+				expectedUnpackedSize: 2 * unpackedBlockSize,
+				expectedPackingSize:  0,
 			},
 			{
-				name:         "packing and packed blocks",
-				packingCount: 3,
-				packedCount:  3,
+				name:                 "packing and packed blocks",
+				packingCount:         3,
+				packedCount:          4,
+				expectedUnpackedSize: 0,
+				expectedPackingSize:  3 * packingBlockSize,
 			},
 			{
-				name:          "all unpacked, packing, and packed blocks",
-				unpackedCount: 3,
-				packingCount:  3,
-				packedCount:   3,
+				name:                 "all unpacked, packing, and packed blocks",
+				unpackedCount:        2,
+				packingCount:         3,
+				packedCount:          4,
+				expectedUnpackedSize: 2 * unpackedBlockSize,
+				expectedPackingSize:  3 * packingBlockSize,
 			},
 		} {
 			tt := tt
@@ -151,8 +173,139 @@ func TestGetNotPackedBlocksTotalSize(t *testing.T) {
 				unpackedSize, packingSize, err := db.GetNotPackedBlocksTotalSize(ctx)
 				require.NoError(t, err)
 
-				assert.Equal(t, int64(tt.unpackedCount*unpackedBlockSize), unpackedSize)
-				assert.Equal(t, int64(tt.packingCount*packingBlockSize), packingSize)
+				assert.Equal(t, int64(tt.expectedUnpackedSize), unpackedSize)
+				assert.Equal(t, int64(tt.expectedPackingSize), packingSize)
+			})
+		}
+	})
+}
+
+func TestQueryPackingBlocksData(t *testing.T) {
+	testutil.RunDBTest(t, func(t *testing.T, ctx *testcontext.Context, tempDB *dbutil.TempDatabase, db *db.DB) {
+		for _, tt := range []struct {
+			name          string
+			unpackedCount int
+			packingCount  int
+			packedCount   int
+			maxSize       int
+			maxBlocks     int
+			expectedCount int
+		}{
+			{
+				name:          "no blocks",
+				expectedCount: 0,
+			},
+			{
+				name:          "only unpacked blocks",
+				unpackedCount: 2,
+				expectedCount: 0,
+			},
+			{
+				name:          "only packing blocks",
+				packingCount:  3,
+				expectedCount: 3,
+			},
+			{
+				name:          "only packed blocks",
+				packedCount:   4,
+				expectedCount: 0,
+			},
+			{
+				name:          "unpacked and packing blocks",
+				unpackedCount: 2,
+				packingCount:  3,
+				expectedCount: 3,
+			},
+			{
+				name:          "unpacked and packed blocks",
+				unpackedCount: 2,
+				packedCount:   4,
+				expectedCount: 0,
+			},
+			{
+				name:          "packing and packed blocks",
+				packingCount:  3,
+				packedCount:   4,
+				expectedCount: 3,
+			},
+			{
+				name:          "all unpacked, packing, and packed blocks",
+				unpackedCount: 2,
+				packingCount:  3,
+				packedCount:   4,
+				expectedCount: 3,
+			},
+			{
+				name:          "max blocks less than packing blocks",
+				packingCount:  3,
+				maxBlocks:     2,
+				expectedCount: 2,
+			},
+			{
+				name:          "max size less than total size of packing blocks (round)",
+				packingCount:  3,
+				maxSize:       2 * packingBlockSize,
+				expectedCount: 2,
+			},
+			{
+				name:          "max size less than total size of packing blocks (+1)",
+				packingCount:  3,
+				maxSize:       2*packingBlockSize + 1,
+				expectedCount: 2,
+			},
+			{
+				name:          "max size less than total size of packing blocks (-1)",
+				packingCount:  3,
+				maxSize:       1*packingBlockSize - 1,
+				expectedCount: 0,
+			},
+			{
+				name:          "max size and max blocks less than available packing blocks (max size < max blocks)",
+				packingCount:  3,
+				maxBlocks:     2,
+				maxSize:       2*packingBlockSize - 1,
+				expectedCount: 1,
+			},
+			{
+				name:          "max size and max blocks less than available packing blocks (max size > max blocks)",
+				packingCount:  3,
+				maxBlocks:     1,
+				maxSize:       2 * packingBlockSize,
+				expectedCount: 1,
+			},
+		} {
+			tt := tt
+
+			maxSize := pack.DefaultMaxSize.Int()
+			if tt.maxSize > 0 {
+				maxSize = tt.maxSize
+			}
+
+			maxBlocks := pack.DefaultMaxBlocks
+			if tt.maxBlocks > 0 {
+				maxBlocks = tt.maxBlocks
+			}
+
+			t.Run(tt.name, func(t *testing.T) {
+				defer DeleteAll{}.Check(ctx, t, db)
+
+				PutRandomBlocks(ctx, t, db, tt.packedCount, pack.Packed)
+				cids := PutRandomBlocks(ctx, t, db, tt.packingCount, pack.Packing)
+				PutRandomBlocks(ctx, t, db, tt.unpackedCount, pack.Unpacked)
+
+				result := make(map[string][]byte)
+				err := db.QueryPackingBlocksData(ctx, maxSize, maxBlocks, result)
+				require.NoError(t, err)
+
+				assert.Len(t, result, tt.expectedCount)
+
+				for _, cid := range cids {
+					assert.Contains(t, cids, cid)
+				}
+
+				for _, data := range result {
+					assert.Len(t, data, packingBlockSize)
+				}
 			})
 		}
 	})

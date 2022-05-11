@@ -16,29 +16,32 @@ import (
 )
 
 const (
-	DefaultInterval = 1 * time.Minute
-	DefaultMinSize  = 60 * memory.MiB
-	DefaultMaxSize  = 62 * memory.MiB
-	MaxBlockSize    = 1 * memory.MiB
+	DefaultInterval  = 1 * time.Minute
+	DefaultMinSize   = 60 * memory.MiB
+	DefaultMaxSize   = 62 * memory.MiB
+	DefaultMaxBlocks = 100 * 1000
+	MaxBlockSize     = 1 * memory.MiB
 )
 
 type Chore struct {
-	db       *db.DB
-	packs    *Store
-	interval time.Duration
-	minSize  int
-	maxSize  int
-	loop     *sync2.Cycle
-	runOnce  sync.Once
+	db        *db.DB
+	packs     *Store
+	interval  time.Duration
+	minSize   int
+	maxSize   int
+	maxBlocks int
+	loop      *sync2.Cycle
+	runOnce   sync.Once
 }
 
 func NewChore(db *db.DB, packs *Store) *Chore {
 	return &Chore{
-		db:       db,
-		packs:    packs,
-		interval: DefaultInterval,
-		minSize:  DefaultMinSize.Int(),
-		maxSize:  DefaultMaxSize.Int(),
+		db:        db,
+		packs:     packs,
+		interval:  DefaultInterval,
+		minSize:   DefaultMinSize.Int(),
+		maxSize:   DefaultMaxSize.Int(),
+		maxBlocks: DefaultMaxBlocks,
 	}
 }
 
@@ -50,12 +53,24 @@ func (chore *Chore) WithInterval(interval time.Duration) *Chore {
 	return chore
 }
 
-func (chore *Chore) WithPackSize(min, max int) *Chore {
-	if min >= MaxBlockSize.Int() {
-		chore.minSize = min
+func (chore *Chore) WithPackSize(minSize, maxSize, maxBlocks int) *Chore {
+	if minSize > 0 {
+		chore.minSize = minSize
 	}
-	if max-chore.minSize >= MaxBlockSize.Int() {
-		chore.maxSize = max
+	if maxSize > 0 {
+		chore.maxSize = maxSize
+	}
+	if maxBlocks > 0 {
+		chore.maxBlocks = maxBlocks
+	}
+	if chore.minSize < MaxBlockSize.Int() {
+		chore.minSize = MaxBlockSize.Int()
+	}
+	if chore.maxSize < MaxBlockSize.Int() {
+		chore.maxSize = MaxBlockSize.Int()
+	}
+	if chore.minSize > chore.maxSize {
+		chore.minSize = chore.maxSize
 	}
 	return chore
 }
@@ -126,7 +141,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 
 		// First query any stalled blocks in packing status.
 		if packingSize > 0 {
-			err := chore.db.QueryPackingBlocksData(ctx, blocks)
+			err := chore.db.QueryPackingBlocksData(ctx, chore.maxSize, chore.maxBlocks, blocks)
 			if err != nil {
 				return Error.Wrap(err)
 			}

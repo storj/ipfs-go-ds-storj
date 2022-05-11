@@ -44,6 +44,7 @@ type Config struct {
 	PackInterval      time.Duration
 	MinPackSize       int
 	MaxPackSize       int
+	MaxPackBlocks     int
 	DebugAddr         string
 	UpdateBloomFilter bool
 }
@@ -66,7 +67,7 @@ func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, erro
 	packs := pack.NewStore(project, conf.Bucket)
 	blocks := block.NewStore(bs.BlockPrefix.String(), db, packs).
 		WithPackInterval(conf.PackInterval).
-		WithPackSize(conf.MinPackSize, conf.MaxPackSize)
+		WithPackSize(conf.MinPackSize, conf.MaxPackSize, conf.MaxPackBlocks)
 
 	return &Datastore{
 		Config:  conf,
@@ -82,10 +83,11 @@ func (storj *Datastore) WithPackInterval(interval time.Duration) *Datastore {
 	return storj
 }
 
-func (storj *Datastore) WithPackSize(min, max int) *Datastore {
-	storj.MinPackSize = min
-	storj.MaxPackSize = max
-	storj.blocks.WithPackSize(min, max)
+func (storj *Datastore) WithPackSize(minSize, maxSize, maxBlocks int) *Datastore {
+	storj.MinPackSize = minSize
+	storj.MaxPackSize = maxSize
+	storj.MaxPackBlocks = maxBlocks
+	storj.blocks.WithPackSize(minSize, maxSize, maxBlocks)
 	return storj
 }
 
