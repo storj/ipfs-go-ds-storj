@@ -56,7 +56,11 @@ func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, erro
 		return nil, Error.New("failed to parse access grant: %v", err)
 	}
 
-	project, err := uplink.OpenProject(ctx, access)
+	config := uplink.Config{
+		UserAgent: "storj-datastore-ipfs",
+	}
+
+	project, err := config.OpenProject(ctx, access)
 	if err != nil {
 		return nil, Error.New("failed to open Storj project: %s", err)
 	}
