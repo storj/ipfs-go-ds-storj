@@ -40,7 +40,7 @@ func TestPack_ContinueInterrupted(t *testing.T) {
 
 func runPackTest(t *testing.T, initPackStatus func(ctx *testcontext.Context, storj *storjds.Datastore)) {
 	testutil.RunDatastoreTest(t, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
-		storj = storj.WithPackSize(1*memory.MiB.Int(), 2*memory.MiB.Int())
+		storj = storj.WithPackSize(1*memory.MiB.Int(), 2*memory.MiB.Int(), pack.DefaultMaxBlocks)
 
 		var keys []ds.Key
 		for i := 0; i < 10; i++ {

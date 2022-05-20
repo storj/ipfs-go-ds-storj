@@ -43,8 +43,8 @@ func (storj *Store) WithPackInterval(interval time.Duration) *Store {
 	return storj
 }
 
-func (storj *Store) WithPackSize(min, max int) *Store {
-	storj.packer.WithPackSize(min, max)
+func (storj *Store) WithPackSize(minSize, maxSize, maxBlocks int) *Store {
+	storj.packer.WithPackSize(minSize, maxSize, maxBlocks)
 	return storj
 }
 

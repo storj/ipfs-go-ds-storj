@@ -203,7 +203,7 @@ func (db *DB) GetNotPackedBlocksTotalSize(ctx context.Context) (unpackedSize, pa
 	return unpackedSize, packingSize, nil
 }
 
-func (db *DB) QueryPackingBlocksData(ctx context.Context, result map[string][]byte) (err error) {
+func (db *DB) QueryPackingBlocksData(ctx context.Context, maxSize, maxBlocks int, result map[string][]byte) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
 	rows, err := db.QueryContext(ctx, `
@@ -211,18 +211,26 @@ func (db *DB) QueryPackingBlocksData(ctx context.Context, result map[string][]by
 		FROM blocks
 		WHERE
 			pack_status = `+packingStatus+`
-	`)
+		LIMIT $1
+	`, maxBlocks)
 	if err != nil {
 		return Error.Wrap(err)
 	}
 	defer rows.Close()
 
+	var size int
 	for rows.Next() {
 		var cid string
 		var data []byte
 		if err := rows.Scan(&cid, &data); err != nil {
 			return Error.Wrap(err)
 		}
+
+		size += len(data)
+		if size > maxSize {
+			return nil
+		}
+
 		result[cid] = data
 	}
 	if err = rows.Err(); err != nil {
