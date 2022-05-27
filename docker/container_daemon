@@ -23,6 +23,17 @@ else
   esac
   ipfs init --empty-repo $INIT_ARGS
 
+  # Set the node's peer ID, if a predefined one is provided
+  if [ ! -z $IPFS_IDENTITY_PEER_ID ]; then
+    ipfs config Identity.PeerID $IPFS_IDENTITY_PEER_ID
+  fi
+
+  # Set the private key that matches the peer ID, if provided above
+  if [ ! -z $IPFS_IDENTITY_PRIVATE_KEY ]; then
+    # We use sed here because `ipfs config` does not allow changing the PrivKey.
+    sed -i "s/\(\"PrivKey\": \)\(.*\)/\1\"$IPFS_IDENTITY_PRIVATE_KEY\"/" $repo/config
+  fi
+
   # HTTP API port config
   if [ -z $IPFS_API_PORT ]; then IPFS_API_PORT=5001; fi
   ipfs config Addresses.API /ip4/0.0.0.0/tcp/$IPFS_API_PORT
