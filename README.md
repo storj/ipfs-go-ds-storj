@@ -95,6 +95,8 @@ docker run --rm -d \
     -e STORJ_DATABASE_URL=<database_url> \
     -e STORJ_BUCKET=<storj_bucket> \
     -e STORJ_ACCESS=<storj_access_grant> \
+    -e IPFS_IDENTITY_PEER_ID=<peer_id> \
+    -e IPFS_IDENTITY_PRIVATE_KEY=<escaped_privkey> \
     -e IPFS_GATEWAY_NO_FETCH=true \
     -e IPFS_GATEWAY_DOMAIN=<gateway_domain_name> \
     -e IPFS_GATEWAY_USE_SUBDOMAINS=false \
@@ -117,6 +119,10 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 `STORJ_BUCKET` must be set to an existing bucket.
 
 `STORJ_ACCESS` must be set to an access grant with full permission to `STORJ_BUCKET`.
+
+`IPFS_IDENTITY_PEER_ID` can be set optionally to preserve the node identity between runs. The current peer ID can be found under `Identity.PeerID` in the config file.
+
+`IPFS_IDENTITY_PRIVATE_KEY` must be set if `IPFS_IDENTITY_PEER_ID` is set, and the provided private key must match the peer ID. The current private key can be found under `Identity.PrivKey` in the config file. The provided private key must be properly escaped for the `sed` tool, i.e. it must be wrapped with quotation marks and slashes must be escaped with backslashes.
 
 `IPFS_GATEWAY_NO_FETCH` determines if the IPFS gateway is open (if set to false) or restricted (if set to true). Restricted gateways serve files only from the local IPFS node. Open gateways search the IPFS network if the file is not present on the local IPFS node.
 
