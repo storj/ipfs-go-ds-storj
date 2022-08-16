@@ -59,8 +59,8 @@ else
   # Storj datastore config
   if [ ! -z $STORJ_PACK_INTERVAL ]; then CFG_PACK_INTERVAL=",\"packInterval\": \"$STORJ_PACK_INTERVAL\""; fi
   if [ -z $STORJ_UPDATE_BLOOM_FILTER ]; then STORJ_UPDATE_BLOOM_FILTER=false; fi
-  ipfs config --json Datastore.Spec "{\"child\":{\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\"$CFG_PACK_INTERVAL,\"debugAddr\": \"$STORJ_DEBUG_ADDR\",\"updateBloomFilter\": \"$STORJ_UPDATE_BLOOM_FILTER\"},\"prefix\": \"storj.datastore\",\"type\": \"measure\"}"
-  echo -e "{\"bucket\":\"$STORJ_BUCKET\"}" > $repo/datastore_spec
+  ipfs config --json Datastore.Spec "{\"mounts\": [{\"child\": {\"type\": \"storjds\",\"dbURI\": \"$STORJ_DATABASE_URL\",\"bucket\": \"$STORJ_BUCKET\",\"accessGrant\": \"$STORJ_ACCESS\"$CFG_PACK_INTERVAL,\"debugAddr\": \"$STORJ_DEBUG_ADDR\",\"updateBloomFilter\": \"$STORJ_UPDATE_BLOOM_FILTER\"},\"mountpoint\": \"/\",\"prefix\": \"storj.datastore\",\"type\": \"measure\"},{\"child\": {\"compression\": \"none\",\"path\": \"providers\",\"type\": \"levelds\"},\"mountpoint\": \"/providers\",\"prefix\": \"leveldb.datastore\",\"type\": \"measure\"}],\"type\": \"mount\"}"
+  echo -e "{\"mounts\":[{\"mountpoint\":\"/providers\",\"path\":\"providers\",\"type\":\"levelds\"},{\"bucket\":\"$STORJ_BUCKET\",\"mountpoint\":\"/\"}],\"type\":\"mount\"}" > $repo/datastore_spec
 
   # Set up the swarm key, if provided
 
