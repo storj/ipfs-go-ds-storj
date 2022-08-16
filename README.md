@@ -53,19 +53,38 @@ The `config` file should include the following:
   "Datastore": {
   ...
     "Spec": {
-      "child": {
-        "type": "storjds",
-        "dbURI": "$databaseURI",
-        "bucket": "$bucketname",
-        "accessGrant": "$accessGrant",
-        "packInterval": "$packInterval",
-        "debugAddr": "$debugAddr",
-        "updateBloomFilter": "$updateBloomFilter"
-      },
-      "prefix": "storj.datastore",
-      "type": "measure"
+      "mounts": [
+        {
+          "child": {
+            "type": "storjds",
+            "dbURI": "$databaseURI",
+            "bucket": "$bucketname",
+            "accessGrant": "$accessGrant",
+            "packInterval": "$packInterval",
+            "debugAddr": "$debugAddr",
+            "updateBloomFilter": "$updateBloomFilter"
+          },
+          "mountpoint": "/",
+          "prefix": "storj.datastore",
+          "type": "measure"
+        },
+        {
+          "child": {
+            "compression": "none",
+            "path": "providers",
+            "type": "levelds"
+          },
+          "mountpoint": "/providers",
+          "prefix": "leveldb.datastore",
+          "type": "measure"
+        }
+      ],
+      "type": "mount"
     }
+    ...
+  }
   ...
+}
 ```
 `$databaseURI` is the URI to a Postgres or CockroachDB database installation. This database is used for local caching of blocks before they are packed and uploaded to the Storj bucket. The database must exists. 
 
@@ -82,7 +101,7 @@ The `config` file should include the following:
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
 ```json
-{"bucket":"$bucketname"}
+{"mounts":[{"mountpoint":"/providers","path":"providers","type":"levelds"},{"bucket":"$bucketname","mountpoint":"/"}],"type":"mount"}
 ```
 
 Otherwise, you need to do a datastore migration.
@@ -109,7 +128,7 @@ docker run --rm -d \
     -e GOLOG_FILE=/app/log/output.log \
     -e GOLOG_LOG_LEVEL="storjds=info" \
     --mount type=bind,source=<log-dir>,destination=/app/log \
-    storjlabs/ipfs-go-ds-storj
+    storjlabs/ipfs-go-ds-storj:<tag>
 ```
 
 Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-storj.

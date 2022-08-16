@@ -186,21 +186,42 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 }
 
 func lookupStorjDatastoreSpec(spec map[string]interface{}) map[string]interface{} {
-	which, ok := spec["type"].(string)
+	mounts, ok := spec["mounts"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	for _, iface := range mounts {
+		mount, ok := iface.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+
+		storjds := lookupStorjDatastoreSpecFromMount(mount)
+		if storjds != nil {
+			return storjds
+		}
+	}
+
+	return nil
+}
+
+func lookupStorjDatastoreSpecFromMount(mount map[string]interface{}) map[string]interface{} {
+	which, ok := mount["type"].(string)
 	if !ok {
 		return nil
 	}
 
 	if which == "storjds" {
-		return spec
+		return mount
 	}
 
-	child, ok := spec["child"].(map[string]interface{})
+	child, ok := mount["child"].(map[string]interface{})
 	if !ok {
 		return nil
 	}
 
-	return lookupStorjDatastoreSpec(child)
+	return lookupStorjDatastoreSpecFromMount(child)
 }
 
 func (plugin *StorjPlugin) Close() error {
