@@ -87,13 +87,12 @@ else
 
   # Unset the swarm key file variable
   unset IPFS_SWARM_KEY_FILE
+fi
 
-  # Print config for debug purposes
-  if [ -z $IPFS_SHOW_CONFIG ]; then IPFS_SHOW_CONFIG=false; fi
-  if [[ $IPFS_SHOW_CONFIG == "true" ]] ; then
-    ipfs config show
-  fi
-
+# Print config for debug purposes
+if [ -z $IPFS_SHOW_CONFIG ]; then IPFS_SHOW_CONFIG=false; fi
+if [[ $IPFS_SHOW_CONFIG == "true" ]] ; then
+  ipfs config show
 fi
 
 exec ipfs "$@"
