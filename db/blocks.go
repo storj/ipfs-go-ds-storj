@@ -6,10 +6,11 @@ import (
 	"context"
 
 	ds "github.com/ipfs/go-datastore"
-	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
 	"storj.io/private/dbutil/pgutil"
+	"storj.io/private/dbutil/txutil"
+	"storj.io/private/tagsql"
 )
 
 const (
@@ -136,34 +137,24 @@ func (db *DB) GetBlockSize(ctx context.Context, cid string) (size int, err error
 func (db *DB) DeleteBlock(ctx context.Context, cid string) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
+	return txutil.WithTx(ctx, db, nil, func(ctx context.Context, tx tagsql.Tx) error {
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM blocks
+			WHERE
+				cid = $1 AND
+				pack_status = 0;
+		`, cid)
+
+		_, err = tx.ExecContext(ctx, `
+			UPDATE blocks
+			SET deleted = true
+			WHERE
+				cid = $1 AND
+				pack_status > 0;
+		`, cid)
+
 		return Error.Wrap(err)
-	}
-	defer func() {
-		if err != nil {
-			err = errs.Combine(err, tx.Rollback())
-			return
-		}
-		err = tx.Commit()
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		DELETE FROM blocks
-		WHERE
-			cid = $1 AND
-			pack_status = 0;
-	`, cid)
-
-	_, err = tx.ExecContext(ctx, `
-		UPDATE blocks
-		SET deleted = true
-		WHERE
-			cid = $1 AND
-			pack_status > 0;
-	`, cid)
-
-	return Error.Wrap(err)
+	})
 }
 
 func (db *DB) GetNotPackedBlocksTotalSize(ctx context.Context) (unpackedSize, packingSize int64, err error) {
@@ -243,34 +234,37 @@ func (db *DB) QueryPackingBlocksData(ctx context.Context, maxSize, maxBlocks int
 func (db *DB) QueryUnpackedBlocksData(ctx context.Context, cids []string, result map[string][]byte) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	rows, err := db.QueryContext(ctx, `
-		UPDATE blocks
-		SET
-			pack_status = `+packingStatus+`
-		WHERE
-			pack_status = `+unpackedStatus+` AND
-			cid = ANY($1)
-		RETURNING
-			cid, data
-	`, pgutil.TextArray(cids))
-	if err != nil {
-		return Error.Wrap(err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid string
-		var data []byte
-		if err := rows.Scan(&cid, &data); err != nil {
+	// Explicitly wrap in Tx to retry if required.
+	return txutil.WithTx(ctx, db, nil, func(ctx context.Context, tx tagsql.Tx) error {
+		rows, err := db.QueryContext(ctx, `
+			UPDATE blocks
+			SET
+				pack_status = `+packingStatus+`
+			WHERE
+				pack_status = `+unpackedStatus+` AND
+				cid = ANY($1)
+			RETURNING
+				cid, data
+		`, pgutil.TextArray(cids))
+		if err != nil {
 			return Error.Wrap(err)
 		}
-		result[cid] = data
-	}
-	if err = rows.Err(); err != nil {
-		return Error.Wrap(err)
-	}
+		defer rows.Close()
 
-	return nil
+		for rows.Next() {
+			var cid string
+			var data []byte
+			if err := rows.Scan(&cid, &data); err != nil {
+				return Error.Wrap(err)
+			}
+			result[cid] = data
+		}
+		if err = rows.Err(); err != nil {
+			return Error.Wrap(err)
+		}
+
+		return nil
+	})
 }
 
 func (db *DB) GetUnpackedBlocksUpToMaxSize(ctx context.Context, maxSize int) (cids []string, err error) {
@@ -316,44 +310,34 @@ func (db *DB) GetUnpackedBlocksUpToMaxSize(ctx context.Context, maxSize int) (ci
 func (db *DB) UpdatePackedBlocks(ctx context.Context, packObjectKey string, cidOffs map[string]int) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return Error.Wrap(err)
-	}
-	defer func() {
-		if err != nil {
-			err = errs.Combine(err, tx.Rollback())
-			return
-		}
-		err = tx.Commit()
-	}()
+	return txutil.WithTx(ctx, db, nil, func(ctx context.Context, tx tagsql.Tx) error {
+		for cid, off := range cidOffs {
+			result, err := tx.ExecContext(ctx, `
+				UPDATE blocks
+				SET
+					pack_status = `+packedStatus+`, 
+					pack_object = $1,
+					pack_offset = $2,
+					data = NULL
+				WHERE
+					cid = $3 AND
+					pack_status = `+packingStatus+`
+			`, packObjectKey, off, cid)
+			if err != nil {
+				return Error.Wrap(err)
+			}
 
-	for cid, off := range cidOffs {
-		result, err := tx.ExecContext(ctx, `
-			UPDATE blocks
-			SET
-				pack_status = `+packedStatus+`, 
-				pack_object = $1,
-				pack_offset = $2,
-				data = NULL
-			WHERE
-				cid = $3 AND
-				pack_status = `+packingStatus+`
-		`, packObjectKey, off, cid)
-		if err != nil {
-			return Error.Wrap(err)
-		}
+			affected, err := result.RowsAffected()
+			if err != nil {
+				return Error.Wrap(err)
+			}
+			if affected != 1 {
+				return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
+			}
 
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return Error.Wrap(err)
-		}
-		if affected != 1 {
-			return Error.New("unexpected number of blocks updated db: want 1, got %d", affected)
+			log.Desugar().Debug("UpdatePackedBlocks: updated block status as packed", zap.String("CID", cid), zap.Int("Offset", off))
 		}
 
-		log.Desugar().Debug("UpdatePackedBlocks: updated block status as packed", zap.String("CID", cid), zap.Int("Offset", off))
-	}
-
-	return nil
+		return nil
+	})
 }
