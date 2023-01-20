@@ -112,7 +112,7 @@ func (db *DB) Migration() *migrate.Migration {
 				Version:     2,
 				Action: migrate.SQL{
 					`DROP INDEX IF EXISTS blocks_size_created_status_index`,
-					`CREATE INDEX IF NOT EXISTS blocks_pack_status_index ON blocks ( pack_status ) STORING ( size, created )`,
+					`CREATE INDEX IF NOT EXISTS blocks_pack_status_index ON blocks ( pack_status ) INCLUDE ( size, created )`,
 					`CREATE INDEX IF NOT EXISTS blocks_deleted_false_index ON blocks ( deleted ) WHERE deleted = false`,
 				},
 			},
