@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"storj.io/common/errs2"
 	"storj.io/common/memory"
 	"storj.io/common/sync2"
 	"storj.io/ipfs-go-ds-storj/db"
@@ -88,9 +89,20 @@ func (chore *Chore) Run(ctx context.Context) {
 		chore.loop = sync2.NewCycle(chore.interval)
 
 		go func() {
-			err := chore.loop.Run(ctx, chore.pack)
+			err := chore.loop.Run(ctx, func(ctx context.Context) error {
+				err := chore.pack(ctx)
+				if err != nil {
+					if errs2.IsCanceled(err) {
+						// Return the cancel error to stop the loop.
+						return err
+					}
+				}
+				// Returning no error will execute the loop again.
+				return nil
+			})
 			if err != nil {
-				log.Desugar().Error("Pack error", zap.Error(err))
+				mon.Event("pack_cycle_error")
+				log.Desugar().Error("Pack cycle error", zap.Error(err))
 			}
 		}()
 	})
@@ -116,6 +128,7 @@ func (chore *Chore) pack(ctx context.Context) (err error) {
 	log.Desugar().Debug("Pack")
 	defer func() {
 		if err != nil {
+			mon.Event("pack_error")
 			log.Desugar().Error("Pack error", zap.Error(err))
 		}
 	}()
