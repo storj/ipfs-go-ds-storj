@@ -18,6 +18,7 @@ import (
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
+	"storj.io/common/sync2"
 	"storj.io/ipfs-go-ds-storj/db"
 )
 
@@ -44,7 +45,7 @@ func NewUpdater(dbURI string, bloom *bbloom.Bloom) *Updater {
 	}
 }
 
-func (updater *Updater) Run(ctx context.Context) {
+func (updater *Updater) Start(ctx context.Context) {
 	defer mon.Task()(&ctx)(nil)
 
 	updater.runOnce.Do(func() {
@@ -61,7 +62,7 @@ func (updater *Updater) Run(ctx context.Context) {
 				default:
 					if err != nil {
 						log.Desugar().Error("Bloom filter updater error", zap.Error(err))
-						time.Sleep(1 * time.Second)
+						sync2.Sleep(ctx, 1*time.Second)
 					}
 					err = updater.listen(ctx, time.Now().Add(-1*time.Minute))
 				}

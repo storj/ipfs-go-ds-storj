@@ -32,7 +32,7 @@ func TestBloomUpdater(t *testing.T) {
 		updater := bloom.NewUpdater(tempDB.ConnStr, bf)
 		defer ctx.Check(updater.Close)
 
-		updater.Run(ctx)
+		updater.Start(ctx)
 
 		b58Hash := "QmVAXDpe8PKRxScTdZ6nMYpBVwU9EV5CwefQhyBVrWPvzb"
 		multihash, err := mh.FromB58String(b58Hash)

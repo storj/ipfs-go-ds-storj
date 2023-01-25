@@ -60,7 +60,7 @@ func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
 	defer mon.Task()(&ctx)(&err)
 
 	// Run the packer in a separate context to avoid canceling it prematurely.
-	store.packer.Run(context.Background())
+	store.packer.Start(context.Background())
 
 	return nil
 }

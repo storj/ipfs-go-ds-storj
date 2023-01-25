@@ -76,7 +76,7 @@ func (chore *Chore) WithPackSize(minSize, maxSize, maxBlocks int) *Chore {
 	return chore
 }
 
-func (chore *Chore) Run(ctx context.Context) {
+func (chore *Chore) Start(ctx context.Context) {
 	defer mon.Task()(&ctx)(nil)
 
 	chore.runOnce.Do(func() {

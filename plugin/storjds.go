@@ -180,7 +180,7 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 	}
 
 	plugin.bloomUpdater = bloom.NewUpdater(storj.cfg.DBURI, bloomFilter)
-	plugin.bloomUpdater.Run(node.Context())
+	plugin.bloomUpdater.Start(node.Context())
 
 	return nil
 }
