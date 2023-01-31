@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ipfs/bbloom"
@@ -29,50 +28,32 @@ var mon = monkit.Package()
 var Error = errs.Class("bloom")
 
 type Updater struct {
-	dbURI      string
-	bloom      *bbloom.Bloom
-	runOnce    sync.Once
-	closedOnce sync.Once
-	closed     chan struct{}
+	dbURI string
+	bloom *bbloom.Bloom
 }
 
 func NewUpdater(dbURI string, bloom *bbloom.Bloom) *Updater {
 	return &Updater{
-		dbURI:  dbURI,
-		bloom:  bloom,
-		closed: make(chan struct{}),
+		dbURI: dbURI,
+		bloom: bloom,
 	}
 }
 
 func (updater *Updater) Run(ctx context.Context) {
 	defer mon.Task()(&ctx)(nil)
 
-	updater.runOnce.Do(func() {
-		go func() {
-			var err error
-			for {
-				select {
-				case <-updater.closed:
-					log.Desugar().Debug("Updater closed")
-					return
-				case <-ctx.Done():
-					log.Desugar().Debug("Context done")
-					return
-				default:
-					if err != nil {
-						log.Desugar().Error("Bloom filter updater error", zap.Error(err))
-						time.Sleep(1 * time.Second)
-					}
-					err = updater.listen(ctx, time.Now().Add(-1*time.Minute))
-				}
+	for {
+		select {
+		case <-ctx.Done():
+			log.Desugar().Debug("Context done")
+			return
+		case <-time.After(time.Second):
+			err := updater.listen(ctx, time.Now().Add(-1*time.Minute))
+			if err != nil {
+				log.Desugar().Error("Bloom filter updater error", zap.Error(err))
 			}
-		}()
-	})
-}
-
-func (updater *Updater) Close() error {
-	updater.closedOnce.Do(func() { close(updater.closed) })
-	return nil
+		}
+	}
 }
 
 func (updater *Updater) listen(ctx context.Context, cursor time.Time) (err error) {
