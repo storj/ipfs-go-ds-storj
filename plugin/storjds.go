@@ -255,22 +255,58 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 	}
 }
 
+type DatastoreProcess struct {
+	*storjds.Datastore
+	DB *db.DB
+
+	root   context.Context
+	cancel context.CancelFunc
+	group  *errgroup.Group
+}
+
+func OpenProcess(ctx context.Context, cfg storjds.Config) (*DatastoreProcess, error) {
+	proc := &DatastoreProcess{}
+	proc.root, proc.cancel = context.WithCancel(ctx)
+	proc.group, proc.root = errgroup.WithContext(proc.root)
+
+	db, err := db.Open(ctx, cfg.DBURI)
+	if err != nil {
+		return nil, Error.New("failed to connect to cache database: %s", err)
+	}
+	proc.DB = db
+
+	err = db.MigrateToLatest(ctx)
+	if err != nil {
+		_ = db.Close()
+		return nil, Error.New("failed to migrate database schema: %w", err)
+	}
+
+	datastore, err := storjds.OpenDatastore(ctx, db, cfg)
+	if err != nil {
+		_ = db.Close()
+		return nil, Error.New("failed to open datastore: %w", err)
+	}
+	proc.Datastore = datastore
+
+	return proc, nil
+}
+
+func (p *DatastoreProcess) Close() error {
+	p.cancel()
+	return Error.Wrap(
+		errs.Combine(
+			p.group.Wait(),
+			p.Datastore.Close(),
+			p.DB.Close(),
+		))
+}
+
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	log.Desugar().Debug("Create", zap.String("Path", path))
 
 	ctx := context.Background()
-
-	db, err := db.Open(ctx, storj.cfg.DBURI)
-	if err != nil {
-		return nil, Error.New("failed to connect to cache database: %s", err)
-	}
-
-	err = db.MigrateToLatest(ctx)
-	if err != nil {
-		return nil, Error.New("failed to migrate database schema: %s", err)
-	}
-
-	return storjds.NewDatastore(context.Background(), db, storj.cfg)
+	data, err := OpenProcess(ctx, storj.cfg)
+	return data, Error.Wrap(err)
 }
 
 func (storj *StorjConfig) RunDebug(ctx context.Context) (err error) {

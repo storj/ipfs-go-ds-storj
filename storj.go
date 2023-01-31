@@ -49,7 +49,7 @@ type Config struct {
 	UpdateBloomFilter bool
 }
 
-func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
+func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
 	log.Desugar().Info("New Datastore")
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
@@ -250,14 +250,10 @@ func (storj *Datastore) Batch(ctx context.Context) (batch ds.Batch, err error) {
 
 func (storj *Datastore) Close() error {
 	log.Desugar().Debug("Close")
-
-	err := errs.Combine(
+	return Error.Wrap(errs.Combine(
 		storj.project.Close(),
 		storj.blocks.Close(),
-		storj.db.Close(),
-	)
-
-	return Error.Wrap(err)
+	))
 }
 
 func isBlockKey(key ds.Key) bool {
