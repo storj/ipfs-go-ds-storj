@@ -5,7 +5,6 @@ package pack
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -31,8 +30,7 @@ type Chore struct {
 	minSize   int
 	maxSize   int
 	maxBlocks int
-	loop      *sync2.Cycle
-	runOnce   sync.Once
+	loop      sync2.Cycle
 }
 
 func NewChore(db *db.DB, packs *Store) *Chore {
@@ -47,10 +45,7 @@ func NewChore(db *db.DB, packs *Store) *Chore {
 }
 
 func (chore *Chore) WithInterval(interval time.Duration) *Chore {
-	chore.interval = interval
-	if interval == 0 {
-		chore.interval = DefaultInterval
-	}
+	chore.loop.SetInterval(interval)
 	return chore
 }
 
@@ -79,42 +74,31 @@ func (chore *Chore) WithPackSize(minSize, maxSize, maxBlocks int) *Chore {
 func (chore *Chore) Run(ctx context.Context) {
 	defer mon.Task()(&ctx)(nil)
 
-	chore.runOnce.Do(func() {
-		// Don't run if the pack interval is negative.
-		if chore.interval < 0 {
-			log.Desugar().Info("Packing disabled")
-			return
-		}
+	// Don't run if the pack interval is negative.
+	if chore.interval < 0 {
+		log.Desugar().Info("Packing disabled")
+		return
+	}
 
-		chore.loop = sync2.NewCycle(chore.interval)
-
-		go func() {
-			err := chore.loop.Run(ctx, func(ctx context.Context) error {
-				err := chore.pack(ctx)
-				if err != nil {
-					if errs2.IsCanceled(err) {
-						// Return the cancel error to stop the loop.
-						return err
-					}
-				}
-				// Returning no error will execute the loop again.
-				return nil
-			})
-			if err != nil {
-				mon.Event("pack_cycle_error")
-				log.Desugar().Error("Pack cycle error", zap.Error(err))
+	err := chore.loop.Run(ctx, func(ctx context.Context) error {
+		err := chore.pack(ctx)
+		if err != nil {
+			if errs2.IsCanceled(err) {
+				// Return the cancel error to stop the loop.
+				return err
 			}
-		}()
+		}
+		// Returning no error will execute the loop again.
+		return nil
 	})
+	if err != nil {
+		mon.Event("pack_cycle_error")
+		log.Desugar().Error("Pack cycle error", zap.Error(err))
+	}
 }
 
 func (chore *Chore) Close() error {
-	if chore.loop == nil {
-		return nil
-	}
-
 	chore.loop.Close()
-
 	return nil
 }
 
