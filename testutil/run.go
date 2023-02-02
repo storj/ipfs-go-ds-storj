@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
 
+	"storj.io/common/memory"
 	"storj.io/common/testcontext"
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/block"
@@ -65,8 +66,11 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 		require.NoError(t, err)
 
 		storj, err = storjds.OpenDatastore(ctx, db, storjds.Config{
-			Bucket:      bucket,
-			AccessGrant: access,
+			Bucket:        bucket,
+			AccessGrant:   access,
+			MinPackSize:   1 * memory.MiB.Int(),
+			MaxPackSize:   2 * memory.MiB.Int(),
+			MaxPackBlocks: pack.DefaultMaxBlocks,
 		})
 		require.NoError(t, err)
 
