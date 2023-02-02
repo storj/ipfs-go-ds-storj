@@ -35,9 +35,11 @@ func NewStore(mount string, db *db.DB, packs *pack.Store) *Store {
 	}
 }
 
-func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	defer mon.Task()(&ctx)(&err)
+func (store *Store) Close() error {
+	return nil
+}
 
+func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
 	return nil
 }
 

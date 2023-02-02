@@ -4,6 +4,7 @@
 package bloom_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -30,9 +31,13 @@ func TestBloomUpdater(t *testing.T) {
 		require.NoError(t, err)
 
 		updater := bloom.NewUpdater(tempDB.ConnStr, bf)
-		defer ctx.Check(updater.Close)
 
-		updater.Run(ctx)
+		updaterCtx, cancel := context.WithCancel(ctx)
+		ctx.Go(func() error {
+			updater.Run(updaterCtx)
+			return nil
+		})
+		defer cancel()
 
 		b58Hash := "QmVAXDpe8PKRxScTdZ6nMYpBVwU9EV5CwefQhyBVrWPvzb"
 		multihash, err := mh.FromB58String(b58Hash)

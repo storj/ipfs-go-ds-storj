@@ -45,7 +45,6 @@ var Plugins = []plugin.Plugin{
 }
 
 type StorjPlugin struct {
-	root   context.Context
 	cancel context.CancelFunc
 	group  *errgroup.Group
 }
@@ -133,10 +132,11 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 }
 
 func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
-	log.Desugar().Debug("Start")
+	log.Desugar().Debug("Start plugin")
 
-	plugin.root, plugin.cancel = context.WithCancel(node.Context())
-	plugin.group, plugin.root = errgroup.WithContext(plugin.root)
+	ctx := node.Context()
+	ctx, plugin.cancel = context.WithCancel(node.Context())
+	plugin.group, ctx = errgroup.WithContext(ctx)
 
 	repoCfg, err := node.Repo.Config()
 	if err != nil {
@@ -159,7 +159,7 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 	}
 
 	plugin.group.Go(func() error {
-		return storj.RunDebug(plugin.root)
+		return storj.RunDebug(ctx)
 	})
 
 	if repoCfg.Datastore.BloomFilterSize <= 0 {
@@ -191,7 +191,7 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 
 	bloomUpdater := bloom.NewUpdater(storj.cfg.DBURI, bloomFilter)
 	plugin.group.Go(func() error {
-		bloomUpdater.Run(plugin.root)
+		bloomUpdater.Run(ctx)
 		return nil
 	})
 
@@ -238,11 +238,11 @@ func lookupStorjDatastoreSpecFromMount(mount map[string]interface{}) map[string]
 }
 
 func (plugin *StorjPlugin) Close() error {
-	log.Desugar().Debug("Close")
+	log.Desugar().Debug("Close plugin")
 
 	plugin.cancel()
-	err := plugin.group.Wait()
-	return err
+
+	return Error.Wrap(plugin.group.Wait())
 }
 
 type StorjConfig struct {
@@ -258,16 +258,10 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 type DatastoreProcess struct {
 	*storjds.Datastore
 	DB *db.DB
-
-	root   context.Context
-	cancel context.CancelFunc
-	group  *errgroup.Group
 }
 
 func OpenProcess(ctx context.Context, cfg storjds.Config) (*DatastoreProcess, error) {
 	proc := &DatastoreProcess{}
-	proc.root, proc.cancel = context.WithCancel(ctx)
-	proc.group, proc.root = errgroup.WithContext(proc.root)
 
 	db, err := db.Open(ctx, cfg.DBURI)
 	if err != nil {
@@ -292,10 +286,8 @@ func OpenProcess(ctx context.Context, cfg storjds.Config) (*DatastoreProcess, er
 }
 
 func (p *DatastoreProcess) Close() error {
-	p.cancel()
 	return Error.Wrap(
 		errs.Combine(
-			p.group.Wait(),
 			p.Datastore.Close(),
 			p.DB.Close(),
 		))

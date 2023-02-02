@@ -43,12 +43,12 @@ func (updater *Updater) Run(ctx context.Context) {
 	defer mon.Task()(&ctx)(nil)
 
 	for {
+		err := updater.listen(ctx, time.Now().Add(-1*time.Minute))
 		select {
 		case <-ctx.Done():
 			log.Desugar().Debug("Context done")
 			return
 		case <-time.After(time.Second):
-			err := updater.listen(ctx, time.Now().Add(-1*time.Minute))
 			if err != nil {
 				log.Desugar().Error("Bloom filter updater error", zap.Error(err))
 			}

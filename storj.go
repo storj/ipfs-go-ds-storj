@@ -35,11 +35,9 @@ type Datastore struct {
 	Config
 	db      *db.DB
 	project *uplink.Project
-	packs   *pack.Store
 	blocks  *block.Store
 	packer  *pack.Chore
 
-	root   context.Context
 	cancel context.CancelFunc
 	group  *errgroup.Group
 }
@@ -57,11 +55,11 @@ type Config struct {
 }
 
 func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
-	log.Desugar().Info("New Datastore")
+	log.Desugar().Info("Open datastore")
 
 	ds := &Datastore{}
-	ds.root, ds.cancel = context.WithCancel(ctx)
-	ds.group, ds.root = errgroup.WithContext(ds.root)
+	ctx, ds.cancel = context.WithCancel(ctx)
+	ds.group, ctx = errgroup.WithContext(ctx)
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
@@ -84,7 +82,6 @@ func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, err
 	ds.Config = conf
 	ds.db = db
 	ds.project = project
-	ds.packs = packs
 	ds.blocks = blocks
 	ds.packer = packer
 
@@ -97,9 +94,8 @@ func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, err
 }
 
 func (storj *Datastore) Close() error {
-	log.Desugar().Debug("Close")
+	log.Desugar().Debug("Close datastore")
 	storj.cancel()
-
 	return Error.Wrap(errs.Combine(
 		storj.group.Wait(),
 		storj.project.Close(),
@@ -153,21 +149,6 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 }
 
 func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	defer mon.Task()(&ctx)(&err)
-
-	log.Desugar().Debug("Sync requested", zap.Stringer("Prefix", prefix))
-	defer func() {
-		if err != nil {
-			log.Desugar().Error("Sync returned error", zap.Stringer("Prefix", prefix), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Sync returned", zap.Stringer("Prefix", prefix))
-		}
-	}()
-
-	if prefix.String() == "/" || isBlockKey(prefix) {
-		return storj.blocks.Sync(ctx, trimFirstNamespace(prefix))
-	}
-
 	return nil
 }
 

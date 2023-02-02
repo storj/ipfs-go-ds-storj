@@ -45,7 +45,10 @@ func NewChore(db *db.DB, packs *Store) *Chore {
 }
 
 func (chore *Chore) WithInterval(interval time.Duration) *Chore {
-	chore.loop.SetInterval(interval)
+	chore.interval = interval
+	if interval == 0 {
+		chore.interval = DefaultInterval
+	}
 	return chore
 }
 
@@ -79,6 +82,8 @@ func (chore *Chore) Run(ctx context.Context) {
 		log.Desugar().Info("Packing disabled")
 		return
 	}
+
+	chore.loop.SetInterval(chore.interval)
 
 	err := chore.loop.Run(ctx, func(ctx context.Context) error {
 		err := chore.pack(ctx)

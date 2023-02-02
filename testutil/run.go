@@ -64,7 +64,7 @@ func RunDatastoreTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Contex
 		err = uplnk.CreateBucket(ctx, sat, bucket)
 		require.NoError(t, err)
 
-		storj, err = storjds.NewDatastore(ctx, db, storjds.Config{
+		storj, err = storjds.OpenDatastore(ctx, db, storjds.Config{
 			Bucket:      bucket,
 			AccessGrant: access,
 		})
