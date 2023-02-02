@@ -135,7 +135,7 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 	log.Desugar().Debug("Start plugin")
 
 	ctx := node.Context()
-	ctx, plugin.cancel = context.WithCancel(node.Context())
+	ctx, plugin.cancel = context.WithCancel(ctx)
 	plugin.group, ctx = errgroup.WithContext(ctx)
 
 	repoCfg, err := node.Repo.Config()
