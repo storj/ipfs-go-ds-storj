@@ -5,12 +5,13 @@ package testutil
 
 import (
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"storj.io/common/memory"
 	"storj.io/common/testcontext"
@@ -117,7 +118,7 @@ func RunBlockstoreTest(t *testing.T, f func(t *testing.T, blocks *block.Store)) 
 func RunDBTest(t *testing.T, f func(t *testing.T, ctx *testcontext.Context, tempDB *dbutil.TempDatabase, db *db.DB)) {
 	for _, impl := range []dbutil.Implementation{dbutil.Postgres, dbutil.Cockroach} {
 		impl := impl
-		t.Run(strings.Title(impl.String()), func(t *testing.T) {
+		t.Run(cases.Title(language.English).String(impl.String()), func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testcontext.New(t)

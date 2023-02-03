@@ -15,11 +15,11 @@ import (
 	"github.com/ipfs/bbloom"
 	ds "github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/plugin"
-	"github.com/ipfs/go-ipfs/repo"
-	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/plugin"
+	"github.com/ipfs/kubo/repo"
+	"github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
@@ -54,7 +54,7 @@ func (plugin StorjPlugin) Name() string {
 }
 
 func (plugin StorjPlugin) Version() string {
-	return "0.3.0"
+	return "0.4.0"
 }
 
 func (plugin StorjPlugin) Init(env *plugin.Environment) error {

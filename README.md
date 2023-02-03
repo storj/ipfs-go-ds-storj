@@ -13,11 +13,11 @@ The datastore plugin must be compiled and bundled together with go-ipfs. The plu
 > export GO111MODULE=on
 
 # Clone go-ipfs.
-> git clone https://github.com/ipfs/go-ipfs
+> git clone https://github.com/ipfs/kubo
 > cd go-ipfs
 
 # Checkout the desired release tag of go-ipfs.
-> git checkout v0.12.2
+> git checkout v0.18.1
 
 # Pull in the datastore plugin (you can specify a version other than latest if you'd like).
 > go get storj.io/ipfs-go-ds-storj/plugin@latest
@@ -151,7 +151,7 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
 
-`IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/go-ipfs/blob/master/docs/config.md#datastorebloomfiltersize.
+`IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/kubo/blob/master/docs/config.md#datastorebloomfiltersize.
 
 `STORJ_UPDATE_BLOOM_FILTER` enables the bloom filter updater, which listens to changes in the local database and updates the datastore bloom filter. The default value is false. It should be enabled when running multiple nodes attached to the same datastore. Only CockroachDB is supported. Requires admin privileges for the CockroachDB user.
 
