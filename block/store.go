@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
@@ -23,45 +22,24 @@ var mon = monkit.Package()
 var Error = errs.Class("block")
 
 type Store struct {
-	mount  string
-	db     *db.DB
-	packs  *pack.Store
-	packer *pack.Chore
+	mount string
+	db    *db.DB
+	packs *pack.Store
 }
 
 func NewStore(mount string, db *db.DB, packs *pack.Store) *Store {
 	return &Store{
-		mount:  mount,
-		db:     db,
-		packs:  packs,
-		packer: pack.NewChore(db, packs),
+		mount: mount,
+		db:    db,
+		packs: packs,
 	}
 }
 
-func (storj *Store) WithPackInterval(interval time.Duration) *Store {
-	storj.packer.WithInterval(interval)
-	return storj
-}
-
-func (storj *Store) WithPackSize(minSize, maxSize, maxBlocks int) *Store {
-	storj.packer.WithPackSize(minSize, maxSize, maxBlocks)
-	return storj
-}
-
-func (storj *Store) TriggerWaitPacker() {
-	storj.packer.TriggerWait()
-}
-
 func (store *Store) Close() error {
-	return store.packer.Close()
+	return nil
 }
 
 func (store *Store) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	defer mon.Task()(&ctx)(&err)
-
-	// Run the packer in a separate context to avoid canceling it prematurely.
-	store.packer.Run(context.Background())
-
 	return nil
 }
 

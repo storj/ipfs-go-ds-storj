@@ -16,6 +16,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/zap v1.19.1
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	storj.io/common v0.0.0-20220405183405-ffdc3ab808c6
 	storj.io/private v0.0.0-20220323114243-08c4b5e752f4
 	storj.io/storj v0.12.1-0.20220411131908-de6852510f26

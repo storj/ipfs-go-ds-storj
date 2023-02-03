@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	ds "github.com/ipfs/go-datastore"
-	bs "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +39,6 @@ func TestPack_ContinueInterrupted(t *testing.T) {
 
 func runPackTest(t *testing.T, initPackStatus func(ctx *testcontext.Context, storj *storjds.Datastore)) {
 	testutil.RunDatastoreTest(t, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet, storj *storjds.Datastore) {
-		storj = storj.WithPackSize(1*memory.MiB.Int(), 2*memory.MiB.Int(), pack.DefaultMaxBlocks)
-
 		var keys []ds.Key
 		for i := 0; i < 10; i++ {
 			keys = append(keys, ds.KeyWithNamespaces([]string{"blocks", fmt.Sprintf("block%d", i)}))
@@ -58,10 +55,6 @@ func runPackTest(t *testing.T, initPackStatus func(ctx *testcontext.Context, sto
 		}
 
 		initPackStatus(ctx, storj)
-
-		// Sync starts the pack chore
-		err := storj.Sync(ctx, bs.BlockPrefix)
-		require.NoError(t, err)
 
 		storj.TriggerWaitPacker()
 

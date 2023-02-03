@@ -16,6 +16,7 @@ import (
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"storj.io/ipfs-go-ds-storj/block"
 	"storj.io/ipfs-go-ds-storj/db"
@@ -35,6 +36,10 @@ type Datastore struct {
 	db      *db.DB
 	project *uplink.Project
 	blocks  *block.Store
+	packer  *pack.Chore
+
+	cancel context.CancelFunc
+	group  *errgroup.Group
 }
 
 type Config struct {
@@ -49,8 +54,12 @@ type Config struct {
 	UpdateBloomFilter bool
 }
 
-func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
-	log.Desugar().Info("New Datastore")
+func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
+	log.Desugar().Info("Open datastore")
+
+	ds := &Datastore{}
+	ctx, ds.cancel = context.WithCancel(ctx)
+	ds.group, ctx = errgroup.WithContext(ctx)
 
 	access, err := uplink.ParseAccess(conf.AccessGrant)
 	if err != nil {
@@ -65,21 +74,38 @@ func NewDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, erro
 	}
 
 	packs := pack.NewStore(project, conf.Bucket)
-	blocks := block.NewStore(bs.BlockPrefix.String(), db, packs).
-		WithPackInterval(conf.PackInterval).
+	blocks := block.NewStore(bs.BlockPrefix.String(), db, packs)
+	packer := pack.NewChore(db, packs).
+		WithInterval(conf.PackInterval).
 		WithPackSize(conf.MinPackSize, conf.MaxPackSize, conf.MaxPackBlocks)
 
-	return &Datastore{
-		Config:  conf,
-		db:      db,
-		project: project,
-		blocks:  blocks,
-	}, nil
+	ds.Config = conf
+	ds.db = db
+	ds.project = project
+	ds.blocks = blocks
+	ds.packer = packer
+
+	ds.group.Go(func() error {
+		packer.Run(ctx)
+		return nil
+	})
+
+	return ds, nil
+}
+
+func (storj *Datastore) Close() error {
+	log.Desugar().Debug("Close datastore")
+	storj.cancel()
+	return Error.Wrap(errs.Combine(
+		storj.group.Wait(),
+		storj.project.Close(),
+		storj.packer.Close(),
+	))
 }
 
 func (storj *Datastore) WithPackInterval(interval time.Duration) *Datastore {
 	storj.PackInterval = interval
-	storj.blocks.WithPackInterval(interval)
+	storj.packer.WithInterval(interval)
 	return storj
 }
 
@@ -87,12 +113,12 @@ func (storj *Datastore) WithPackSize(minSize, maxSize, maxBlocks int) *Datastore
 	storj.MinPackSize = minSize
 	storj.MaxPackSize = maxSize
 	storj.MaxPackBlocks = maxBlocks
-	storj.blocks.WithPackSize(minSize, maxSize, maxBlocks)
+	storj.packer.WithPackSize(minSize, maxSize, maxBlocks)
 	return storj
 }
 
 func (storj *Datastore) TriggerWaitPacker() {
-	storj.blocks.TriggerWaitPacker()
+	storj.packer.TriggerWait()
 }
 
 func (storj *Datastore) DB() *db.DB {
@@ -123,21 +149,6 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 }
 
 func (storj *Datastore) Sync(ctx context.Context, prefix ds.Key) (err error) {
-	defer mon.Task()(&ctx)(&err)
-
-	log.Desugar().Debug("Sync requested", zap.Stringer("Prefix", prefix))
-	defer func() {
-		if err != nil {
-			log.Desugar().Error("Sync returned error", zap.Stringer("Prefix", prefix), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Sync returned", zap.Stringer("Prefix", prefix))
-		}
-	}()
-
-	if prefix.String() == "/" || isBlockKey(prefix) {
-		return storj.blocks.Sync(ctx, trimFirstNamespace(prefix))
-	}
-
 	return nil
 }
 
@@ -246,18 +257,6 @@ func (storj *Datastore) Batch(ctx context.Context) (batch ds.Batch, err error) {
 		storj: storj,
 		ops:   make(map[ds.Key]batchOp),
 	}, nil
-}
-
-func (storj *Datastore) Close() error {
-	log.Desugar().Debug("Close")
-
-	err := errs.Combine(
-		storj.project.Close(),
-		storj.blocks.Close(),
-		storj.db.Close(),
-	)
-
-	return Error.Wrap(err)
 }
 
 func isBlockKey(key ds.Key) bool {

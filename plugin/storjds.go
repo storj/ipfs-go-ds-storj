@@ -23,6 +23,7 @@ import (
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	storjds "storj.io/ipfs-go-ds-storj"
 	"storj.io/ipfs-go-ds-storj/bloom"
@@ -44,7 +45,8 @@ var Plugins = []plugin.Plugin{
 }
 
 type StorjPlugin struct {
-	bloomUpdater *bloom.Updater
+	cancel context.CancelFunc
+	group  *errgroup.Group
 }
 
 func (plugin StorjPlugin) Name() string {
@@ -130,7 +132,11 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 }
 
 func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
-	log.Desugar().Debug("Start")
+	log.Desugar().Debug("Start plugin")
+
+	ctx := node.Context()
+	ctx, plugin.cancel = context.WithCancel(ctx)
+	plugin.group, ctx = errgroup.WithContext(ctx)
 
 	repoCfg, err := node.Repo.Config()
 	if err != nil {
@@ -151,6 +157,10 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 	if !ok {
 		return Error.New("storj datastore spec is not of type *StorjConfig")
 	}
+
+	plugin.group.Go(func() error {
+		return storj.RunDebug(ctx)
+	})
 
 	if repoCfg.Datastore.BloomFilterSize <= 0 {
 		log.Desugar().Debug("Bloom filter disabled")
@@ -179,8 +189,11 @@ func (plugin *StorjPlugin) Start(node *core.IpfsNode) error {
 		return Error.New("bloom filter updater is not supported for %s", impl)
 	}
 
-	plugin.bloomUpdater = bloom.NewUpdater(storj.cfg.DBURI, bloomFilter)
-	plugin.bloomUpdater.Run(node.Context())
+	bloomUpdater := bloom.NewUpdater(storj.cfg.DBURI, bloomFilter)
+	plugin.group.Go(func() error {
+		bloomUpdater.Run(ctx)
+		return nil
+	})
 
 	return nil
 }
@@ -225,13 +238,11 @@ func lookupStorjDatastoreSpecFromMount(mount map[string]interface{}) map[string]
 }
 
 func (plugin *StorjPlugin) Close() error {
-	log.Desugar().Debug("Close")
+	log.Desugar().Debug("Close plugin")
 
-	if plugin.bloomUpdater != nil {
-		return plugin.bloomUpdater.Close()
-	}
+	plugin.cancel()
 
-	return nil
+	return Error.Wrap(plugin.group.Wait())
 }
 
 type StorjConfig struct {
@@ -244,30 +255,53 @@ func (storj *StorjConfig) DiskSpec() fsrepo.DiskSpec {
 	}
 }
 
+type DatastoreProcess struct {
+	*storjds.Datastore
+	DB *db.DB
+}
+
+func OpenProcess(ctx context.Context, cfg storjds.Config) (*DatastoreProcess, error) {
+	proc := &DatastoreProcess{}
+
+	db, err := db.Open(ctx, cfg.DBURI)
+	if err != nil {
+		return nil, Error.New("failed to connect to cache database: %s", err)
+	}
+	proc.DB = db
+
+	err = db.MigrateToLatest(ctx)
+	if err != nil {
+		_ = db.Close()
+		return nil, Error.New("failed to migrate database schema: %w", err)
+	}
+
+	datastore, err := storjds.OpenDatastore(ctx, db, cfg)
+	if err != nil {
+		_ = db.Close()
+		return nil, Error.New("failed to open datastore: %w", err)
+	}
+	proc.Datastore = datastore
+
+	return proc, nil
+}
+
+func (p *DatastoreProcess) Close() error {
+	return Error.Wrap(
+		errs.Combine(
+			p.Datastore.Close(),
+			p.DB.Close(),
+		))
+}
+
 func (storj *StorjConfig) Create(path string) (repo.Datastore, error) {
 	log.Desugar().Debug("Create", zap.String("Path", path))
 
 	ctx := context.Background()
-
-	err := storj.initDebug()
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := db.Open(ctx, storj.cfg.DBURI)
-	if err != nil {
-		return nil, Error.New("failed to connect to cache database: %s", err)
-	}
-
-	err = db.MigrateToLatest(ctx)
-	if err != nil {
-		return nil, Error.New("failed to migrate database schema: %s", err)
-	}
-
-	return storjds.NewDatastore(context.Background(), db, storj.cfg)
+	data, err := OpenProcess(ctx, storj.cfg)
+	return data, Error.Wrap(err)
 }
 
-func (storj *StorjConfig) initDebug() (err error) {
+func (storj *StorjConfig) RunDebug(ctx context.Context) (err error) {
 	if len(storj.cfg.DebugAddr) == 0 {
 		return nil
 	}
@@ -284,18 +318,16 @@ func (storj *StorjConfig) initDebug() (err error) {
 		return Error.New("failed to initialize debugger: %v", err)
 	}
 
-	go func() {
-		server := debug.NewServerWithAtomicLevel(log.Desugar(), ln, monkit.Default, debug.Config{
-			Address: storj.cfg.DebugAddr,
-		}, getAtomicLevel())
+	server := debug.NewServerWithAtomicLevel(log.Desugar(), ln, monkit.Default, debug.Config{
+		Address: storj.cfg.DebugAddr,
+	}, getAtomicLevel())
 
-		log.Desugar().Debug("Debug server listening", zap.Stringer("Address", ln.Addr()))
+	log.Desugar().Debug("Debug server listening", zap.Stringer("Address", ln.Addr()))
 
-		err := server.Run(context.Background())
-		if err != nil {
-			log.Desugar().Error("Debug server died", zap.Error(err))
-		}
-	}()
+	err = server.Run(ctx)
+	if err != nil {
+		log.Desugar().Error("Debug server died", zap.Error(err))
+	}
 
 	return nil
 }
