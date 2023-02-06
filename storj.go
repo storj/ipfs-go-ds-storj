@@ -16,6 +16,7 @@ import (
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
 	"storj.io/common/errs2"
@@ -135,11 +136,7 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 
 	log.Desugar().Debug("Put requested", zap.Stringer("Key", key), zap.Int("Bytes", len(value)))
 	defer func() {
-		if errs2.IgnoreCanceled(err) != nil {
-			log.Desugar().Error("Put returned", zap.Stringer("Key", key), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Put returned", zap.Stringer("Key", key), zap.Error(err))
-		}
+		log.Desugar().Log(logLevel(ctx, err), "Put returned", zap.Stringer("Key", key), zap.Error(err))
 	}()
 
 	if isBlockKey(key) {
@@ -158,11 +155,7 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 
 	log.Desugar().Debug("Get requested", zap.Stringer("Key", key))
 	defer func() {
-		if errs2.IgnoreCanceled(err) != nil && !errors.Is(err, ds.ErrNotFound) {
-			log.Desugar().Error("Get returned", zap.Stringer("Key", key), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)), zap.Error(err))
-		}
+		log.Desugar().Log(logLevel(ctx, err), "Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)), zap.Error(err))
 	}()
 
 	if isBlockKey(key) {
@@ -177,11 +170,7 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 
 	log.Desugar().Debug("Has requested", zap.Stringer("Key", key))
 	defer func() {
-		if errs2.IgnoreCanceled(err) != nil {
-			log.Desugar().Error("Has returned", zap.Stringer("Key", key), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Has returned", zap.Stringer("Key", key), zap.Bool("Exists", exists), zap.Error(err))
-		}
+		log.Desugar().Log(logLevel(ctx, err), "Has returned", zap.Stringer("Key", key), zap.Bool("Exists", exists), zap.Error(err))
 	}()
 
 	if isBlockKey(key) {
@@ -197,11 +186,7 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
 	// log.Desugar().Debug("GetSize requested", zap.Stringer("Key", key))
 	// defer func() {
-	// 	if errs2.IgnoreCanceled(err) != nil && !errors.Is(err, ds.ErrNotFound) {
-	// 		log.Desugar().Error("GetSize returned", zap.Stringer("Key", key), zap.Error(err))
-	// 	} else {
-	// 		log.Desugar().Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
-	// 	}
+	// 	log.Desugar().Log(logLevel(ctx, err), "GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
 	// }()
 
 	if isBlockKey(key) {
@@ -216,11 +201,7 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 
 	log.Desugar().Debug("Delete requested", zap.Stringer("Key", key))
 	defer func() {
-		if errs2.IgnoreCanceled(err) != nil {
-			log.Desugar().Error("Delete returned", zap.Stringer("Key", key), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Delete returned", zap.Stringer("Key", key), zap.Error(err))
-		}
+		log.Desugar().Log(logLevel(ctx, err), "Delete returned", zap.Stringer("Key", key), zap.Error(err))
 	}()
 
 	if isBlockKey(key) {
@@ -235,11 +216,7 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 
 	log.Desugar().Debug("Query requested", zap.Stringer("Query", q))
 	defer func() {
-		if errs2.IgnoreCanceled(err) != nil {
-			log.Desugar().Error("Query returned", zap.Stringer("Query", q), zap.Error(err))
-		} else {
-			log.Desugar().Debug("Query returned", zap.Stringer("Query", q), zap.Error(err))
-		}
+		log.Desugar().Log(logLevel(ctx, err), "Query returned", zap.Stringer("Query", q), zap.Error(err))
 	}()
 
 	if strings.HasPrefix(q.Prefix, bs.BlockPrefix.String()) {
@@ -270,6 +247,13 @@ func trimFirstNamespace(key ds.Key) ds.Key {
 		return key
 	}
 	return ds.KeyWithNamespaces(ns[1:])
+}
+
+func logLevel(ctx context.Context, err error) zapcore.Level {
+	if ctx.Err() != context.Canceled && errs2.IgnoreCanceled(err) != nil && !errors.Is(err, ds.ErrNotFound) {
+		return zapcore.ErrorLevel
+	}
+	return zapcore.DebugLevel
 }
 
 type storjBatch struct {
