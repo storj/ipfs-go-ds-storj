@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"storj.io/common/errs2"
 	"storj.io/ipfs-go-ds-storj/block"
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/ipfs-go-ds-storj/pack"
@@ -134,10 +135,10 @@ func (storj *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err 
 
 	log.Desugar().Debug("Put requested", zap.Stringer("Key", key), zap.Int("Bytes", len(value)))
 	defer func() {
-		if err != nil {
-			log.Desugar().Error("Put returned error", zap.Stringer("Key", key), zap.Error(err))
+		if errs2.IgnoreCanceled(err) != nil {
+			log.Desugar().Error("Put returned", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			log.Desugar().Debug("Put returned", zap.Stringer("Key", key))
+			log.Desugar().Debug("Put returned", zap.Stringer("Key", key), zap.Error(err))
 		}
 	}()
 
@@ -157,8 +158,8 @@ func (storj *Datastore) Get(ctx context.Context, key ds.Key) (data []byte, err e
 
 	log.Desugar().Debug("Get requested", zap.Stringer("Key", key))
 	defer func() {
-		if err != nil && !errors.Is(err, ds.ErrNotFound) {
-			log.Desugar().Error("Get returned error", zap.Stringer("Key", key), zap.Error(err))
+		if errs2.IgnoreCanceled(err) != nil && !errors.Is(err, ds.ErrNotFound) {
+			log.Desugar().Error("Get returned", zap.Stringer("Key", key), zap.Error(err))
 		} else {
 			log.Desugar().Debug("Get returned", zap.Stringer("Key", key), zap.Int("Bytes", len(data)), zap.Error(err))
 		}
@@ -176,10 +177,10 @@ func (storj *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err e
 
 	log.Desugar().Debug("Has requested", zap.Stringer("Key", key))
 	defer func() {
-		if err != nil {
-			log.Desugar().Error("Has returned error", zap.Stringer("Key", key), zap.Error(err))
+		if errs2.IgnoreCanceled(err) != nil {
+			log.Desugar().Error("Has returned", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			log.Desugar().Debug("Has returned", zap.Stringer("Key", key), zap.Bool("Exists", exists))
+			log.Desugar().Debug("Has returned", zap.Stringer("Key", key), zap.Bool("Exists", exists), zap.Error(err))
 		}
 	}()
 
@@ -196,8 +197,8 @@ func (storj *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err 
 	// This may be too noisy if BloomFilterSize of IPFS config is set to 0.
 	// log.Desugar().Debug("GetSize requested", zap.Stringer("Key", key))
 	// defer func() {
-	// 	if err != nil && !errors.Is(err, ds.ErrNotFound) {
-	// 		log.Desugar().Error("GetSize returned error", zap.Stringer("Key", key), zap.Error(err))
+	// 	if errs2.IgnoreCanceled(err) != nil && !errors.Is(err, ds.ErrNotFound) {
+	// 		log.Desugar().Error("GetSize returned", zap.Stringer("Key", key), zap.Error(err))
 	// 	} else {
 	// 		log.Desugar().Debug("GetSize returned", zap.Stringer("Key", key), zap.Int("Size", size), zap.Error(err))
 	// 	}
@@ -215,10 +216,10 @@ func (storj *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 
 	log.Desugar().Debug("Delete requested", zap.Stringer("Key", key))
 	defer func() {
-		if err != nil {
-			log.Desugar().Error("Delete returned error", zap.Stringer("Key", key), zap.Error(err))
+		if errs2.IgnoreCanceled(err) != nil {
+			log.Desugar().Error("Delete returned", zap.Stringer("Key", key), zap.Error(err))
 		} else {
-			log.Desugar().Debug("Delete returned", zap.Stringer("Key", key))
+			log.Desugar().Debug("Delete returned", zap.Stringer("Key", key), zap.Error(err))
 		}
 	}()
 
@@ -234,10 +235,10 @@ func (storj *Datastore) Query(ctx context.Context, q dsq.Query) (result dsq.Resu
 
 	log.Desugar().Debug("Query requested", zap.Stringer("Query", q))
 	defer func() {
-		if err != nil {
-			log.Desugar().Error("Query returned error", zap.Stringer("Query", q), zap.Error(err))
+		if errs2.IgnoreCanceled(err) != nil {
+			log.Desugar().Error("Query returned", zap.Stringer("Query", q), zap.Error(err))
 		} else {
-			log.Desugar().Debug("Query returned", zap.Stringer("Query", q))
+			log.Desugar().Debug("Query returned", zap.Stringer("Query", q), zap.Error(err))
 		}
 	}()
 
