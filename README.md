@@ -157,8 +157,6 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_PEERING_PEERS` can be set to add extra public peers in IPFS Peering.Peers section.
 
-`IPFS_GATEWAY_PORT` can be set to change the IPFS Gateway port from the default 8080.
-
 `STORJ_UPDATE_BLOOM_FILTER` enables the bloom filter updater, which listens to changes in the local database and updates the datastore bloom filter. The default value is false. It should be enabled when running multiple nodes attached to the same datastore. Only CockroachDB is supported. Requires admin privileges for the CockroachDB user.
 
 `STORJ_PACK_INTERVAL` can be set to change the packing interval. The default packing interval is 1 minute. If set to a negative duration, e.g. `-1m`, the packing job is disabled.
