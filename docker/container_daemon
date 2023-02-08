@@ -95,7 +95,7 @@ else
 
   # Check and set extra peers
   if [ ! -z "$IPFS_PEERING_PEERS" ]; then
-    ipfs config --json Peerig.Peers "$IPFS_PEERING_PEERS"
+    ipfs config --json Peering.Peers "$IPFS_PEERING_PEERS"
   fi
 fi
 
