@@ -5,7 +5,9 @@ package bloom
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"storj.io/ipfs-go-ds-storj/db"
 )
@@ -50,7 +53,11 @@ func (updater *Updater) Run(ctx context.Context) {
 			return
 		case <-time.After(time.Second):
 			if err != nil {
-				log.Desugar().Error("Bloom filter updater error", zap.Error(err))
+				lvl := zapcore.ErrorLevel
+				if errors.Is(err, io.ErrUnexpectedEOF) {
+					lvl = zapcore.DebugLevel
+				}
+				log.Desugar().Log(lvl, "Bloom filter updater error", zap.Error(err))
 			}
 		}
 	}
