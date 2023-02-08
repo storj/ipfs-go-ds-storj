@@ -149,7 +149,7 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_GATEWAY_PORT` can be set to change the IPFS Gateway port from the default 8080.
 
-`IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.156
+`IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
 
 `IPFS_ADDRESSES_SWARM` can be set to change the IPFS [Addresses.Swarm](https://github.com/ipfs/kubo/blob/master/docs/config.md#addressesswarm) config. It will overwrite the default values.
 
