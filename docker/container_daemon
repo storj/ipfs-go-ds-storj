@@ -87,6 +87,16 @@ else
 
   # Unset the swarm key file variable
   unset IPFS_SWARM_KEY_FILE
+
+  # Check and set extra addresses
+  if [ ! -z "$IPFS_ADDRESSES_SWARM" ]; then
+    ipfs config --json Addresses.Swarm "$IPFS_ADDRESSES_SWARM"
+  fi
+
+  # Check and set extra peers
+  if [ ! -z "$IPFS_PEERING_PEERS" ]; then
+    ipfs config --json Peering.Peers "$IPFS_PEERING_PEERS"
+  fi
 fi
 
 # Print config for debug purposes

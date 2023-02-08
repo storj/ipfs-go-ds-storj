@@ -151,6 +151,10 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 
 `IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
 
+`IPFS_ADDRESSES_SWARM` can be set to change the IPFS [Addresses.Swarm](https://github.com/ipfs/kubo/blob/master/docs/config.md#addressesswarm) config. It will overwrite the default values.
+
+`IPFS_PEERING_PEERS` can be set to add extra public peers in the IPFS [Peering.Peers](https://github.com/ipfs/kubo/blob/master/docs/config.md#peeringpeers) config.
+
 `IPFS_BLOOM_FILTER_SIZE` sets the size in bytes of the datastore bloom filter. It is recommended to set this on production installations for reducing the number of calls to the database due to incoming requests from the IPFS network. Default value is 0, which means that the bloom filter is disabled. Details in https://github.com/ipfs/kubo/blob/master/docs/config.md#datastorebloomfiltersize.
 
 `STORJ_UPDATE_BLOOM_FILTER` enables the bloom filter updater, which listens to changes in the local database and updates the datastore bloom filter. The default value is false. It should be enabled when running multiple nodes attached to the same datastore. Only CockroachDB is supported. Requires admin privileges for the CockroachDB user.
