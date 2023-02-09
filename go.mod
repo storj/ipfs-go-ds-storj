@@ -20,7 +20,7 @@ require (
 	golang.org/x/text v0.6.0
 	storj.io/common v0.0.0-20230207160724-4deac3e5d0d6
 	storj.io/private v0.0.0-20230131204204-956b2ac10aba
-	storj.io/storj v0.12.1-0.20230203121118-36cbf4f0b866
+	storj.io/storj v0.12.1-0.20230209003535-65e3cfb9c6a0
 	storj.io/uplink v1.10.1-0.20230207230755-d04ec4a303ef
 	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
