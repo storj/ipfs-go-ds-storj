@@ -17,10 +17,11 @@ require (
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
-	storj.io/common v0.0.0-20230202144035-097b5b261904
+	golang.org/x/text v0.6.0
+	storj.io/common v0.0.0-20230207160724-4deac3e5d0d6
 	storj.io/private v0.0.0-20230131204204-956b2ac10aba
-	storj.io/storj v0.12.1-0.20230203121118-36cbf4f0b866
-	storj.io/uplink v1.10.1-0.20230201152402-e29017c18cf2
+	storj.io/storj v0.12.1-0.20230209003535-65e3cfb9c6a0
+	storj.io/uplink v1.10.1-0.20230207230755-d04ec4a303ef
 	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
 
@@ -197,6 +198,10 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/quic-go/qtls-go1-18 v0.2.0 // indirect
+	github.com/quic-go/qtls-go1-19 v0.2.0 // indirect
+	github.com/quic-go/qtls-go1-20 v0.1.0 // indirect
+	github.com/quic-go/quic-go v0.32.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/samber/lo v1.36.0 // indirect
 	github.com/segmentio/backo-go v0.0.0-20200129164019-23eae7c10bd3 // indirect
@@ -229,12 +234,11 @@ require (
 	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
-	golang.org/x/crypto v0.3.0 // indirect
+	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/net v0.3.0 // indirect
+	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	golang.org/x/tools v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
@@ -242,7 +246,7 @@ require (
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
-	storj.io/drpc v0.0.32 // indirect
+	storj.io/drpc v0.0.33-0.20230204035225-c9649dee8f2a // indirect
 	storj.io/monkit-jaeger v0.0.0-20220915074555-d100d7589f41 // indirect
 	storj.io/picobuf v0.0.1 // indirect
 )
