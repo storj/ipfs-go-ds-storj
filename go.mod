@@ -18,10 +18,10 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/text v0.6.0
-	storj.io/common v0.0.0-20230207160724-4deac3e5d0d6
+	storj.io/common v0.0.0-20230224050842-81c8060f089b
 	storj.io/private v0.0.0-20230131204204-956b2ac10aba
-	storj.io/storj v0.12.1-0.20230209003535-65e3cfb9c6a0
-	storj.io/uplink v1.10.1-0.20230207230755-d04ec4a303ef
+	storj.io/storj v0.12.1-0.20230306225021-b6721633f177
+	storj.io/uplink v1.10.1-0.20230307011337-123e932479ac
 	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
 
@@ -210,7 +210,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cobra v1.1.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stripe/stripe-go/v72 v72.51.0 // indirect
+	github.com/stripe/stripe-go/v72 v72.90.0 // indirect
 	github.com/vivint/infectious v0.0.0-20200605153912-25a574ae18a3 // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/cbor-gen v0.0.0-20221220214510-0333c149dec0 // indirect
@@ -246,7 +246,7 @@ require (
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
-	storj.io/drpc v0.0.33-0.20230204035225-c9649dee8f2a // indirect
+	storj.io/drpc v0.0.33-0.20230224050324-1fd05d3459f8 // indirect
 	storj.io/monkit-jaeger v0.0.0-20220915074555-d100d7589f41 // indirect
 	storj.io/picobuf v0.0.1 // indirect
 )
