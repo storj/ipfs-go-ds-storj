@@ -12,16 +12,16 @@ require (
 	github.com/ipfs/kubo v0.18.1
 	github.com/jackc/pgx/v4 v4.15.0
 	github.com/multiformats/go-multihash v0.2.1
-	github.com/spacemonkeygo/monkit/v3 v3.0.19
+	github.com/spacemonkeygo/monkit/v3 v3.0.20-0.20230227152157-d00b379de191
 	github.com/stretchr/testify v1.8.1
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/text v0.6.0
-	storj.io/common v0.0.0-20230224050842-81c8060f089b
+	storj.io/common v0.0.0-20230317142710-ffea9ac03387
 	storj.io/private v0.0.0-20230131204204-956b2ac10aba
 	storj.io/storj v0.12.1-0.20230306225021-b6721633f177
-	storj.io/uplink v1.10.1-0.20230307011337-123e932479ac
+	storj.io/uplink v1.10.1-0.20230317162227-f9e94287ad79
 	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
 

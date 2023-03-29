@@ -28,6 +28,14 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 				DBURI:       "somedburi",
 				Bucket:      "somebucket",
 				AccessGrant: "someaccessgrant",
+
+				NodeConnectionPoolCapacity:       DefaultNodeConnectionPoolCapacity,
+				NodeConnectionPoolKeyCapacity:    DefaultNodeConnectionPoolKeyCapacity,
+				NodeConnectionPoolIdleExpiration: DefaultNodeConnectionPoolIdleExpiration,
+
+				SatelliteConnectionPoolCapacity:       DefaultSatelliteConnectionPoolCapacity,
+				SatelliteConnectionPoolKeyCapacity:    DefaultSatelliteConnectionPoolKeyCapacity,
+				SatelliteConnectionPoolIdleExpiration: DefaultSatelliteConnectionPoolIdleExpiration,
 			}},
 		},
 		{
@@ -84,20 +92,38 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 		{
 			// Optional fields included
 			Input: map[string]interface{}{
-				"dbURI":             "somedburi",
-				"bucket":            "somebucket",
-				"accessGrant":       "someaccessgrant",
+				"dbURI":       "somedburi",
+				"bucket":      "somebucket",
+				"accessGrant": "someaccessgrant",
+
 				"packInterval":      "3m",
 				"debugAddr":         "somedebugaddr",
 				"updateBloomFilter": "true",
+
+				"nodeConnectionPoolCapacity":       "1234",
+				"nodeConnectionPoolKeyCapacity":    "12",
+				"nodeConnectionPoolIdleExpiration": "23m",
+
+				"satelliteConnectionPoolCapacity":       "789",
+				"satelliteConnectionPoolKeyCapacity":    "89",
+				"satelliteConnectionPoolIdleExpiration": "9m",
 			},
 			Want: &StorjConfig{cfg: storjds.Config{
-				DBURI:             "somedburi",
-				Bucket:            "somebucket",
-				AccessGrant:       "someaccessgrant",
+				DBURI:       "somedburi",
+				Bucket:      "somebucket",
+				AccessGrant: "someaccessgrant",
+
 				PackInterval:      3 * time.Minute,
 				DebugAddr:         "somedebugaddr",
 				UpdateBloomFilter: true,
+
+				NodeConnectionPoolCapacity:       1234,
+				NodeConnectionPoolKeyCapacity:    12,
+				NodeConnectionPoolIdleExpiration: 23 * time.Minute,
+
+				SatelliteConnectionPoolCapacity:       789,
+				SatelliteConnectionPoolKeyCapacity:    89,
+				SatelliteConnectionPoolIdleExpiration: 9 * time.Minute,
 			}},
 		},
 		{
@@ -117,6 +143,66 @@ func TestStorjPluginDatastoreConfigParser(t *testing.T) {
 				"bucket":            "somebucket",
 				"accessGrant":       "someaccessgrant",
 				"updateBloomFilter": "yes",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid nodeConnectionPoolCapacity format
+			Input: map[string]interface{}{
+				"dbURI":                      "somedburi",
+				"bucket":                     "somebucket",
+				"accessGrant":                "someaccessgrant",
+				"nodeConnectionPoolCapacity": "not-a-number",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid nodeConnectionPoolKeyCapacity format
+			Input: map[string]interface{}{
+				"dbURI":                         "somedburi",
+				"bucket":                        "somebucket",
+				"accessGrant":                   "someaccessgrant",
+				"nodeConnectionPoolKeyCapacity": "not-a-number",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid nodeConnectionPoolIdleExpiration format
+			Input: map[string]interface{}{
+				"dbURI":                            "somedburi",
+				"bucket":                           "somebucket",
+				"accessGrant":                      "someaccessgrant",
+				"nodeConnectionPoolIdleExpiration": "3",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid satelliteConnectionPoolCapacity format
+			Input: map[string]interface{}{
+				"dbURI":                           "somedburi",
+				"bucket":                          "somebucket",
+				"accessGrant":                     "someaccessgrant",
+				"satelliteConnectionPoolCapacity": "not-a-number",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid satelliteConnectionPoolKeyCapacity format
+			Input: map[string]interface{}{
+				"dbURI":                              "somedburi",
+				"bucket":                             "somebucket",
+				"accessGrant":                        "someaccessgrant",
+				"satelliteConnectionPoolKeyCapacity": "not-a-number",
+			},
+			HasErr: true,
+		},
+		{
+			// Invalid satelliteConnectionPoolIdleExpiration format
+			Input: map[string]interface{}{
+				"dbURI":                                 "somedburi",
+				"bucket":                                "somebucket",
+				"accessGrant":                           "someaccessgrant",
+				"satelliteConnectionPoolIdleExpiration": "3",
 			},
 			HasErr: true,
 		},

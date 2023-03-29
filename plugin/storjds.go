@@ -40,6 +40,16 @@ var log = logging.Logger("storjds").Named("plugin")
 // Error is the error class for Storj datastore plugin.
 var Error = errs.Class("storjds")
 
+const (
+	DefaultNodeConnectionPoolCapacity       = 100
+	DefaultNodeConnectionPoolKeyCapacity    = 5
+	DefaultNodeConnectionPoolIdleExpiration = 2 * time.Minute
+
+	DefaultSatelliteConnectionPoolCapacity       = 10
+	DefaultSatelliteConnectionPoolKeyCapacity    = 0
+	DefaultSatelliteConnectionPoolIdleExpiration = 2 * time.Minute
+)
+
 var Plugins = []plugin.Plugin{
 	&StorjPlugin{},
 }
@@ -118,14 +128,101 @@ func (plugin StorjPlugin) DatastoreConfigParser() fsrepo.ConfigFromMap {
 			}
 		}
 
+		nodeConnectionPoolCapacity := DefaultNodeConnectionPoolCapacity
+		if v, ok := m["nodeConnectionPoolCapacity"]; ok {
+			capacity, ok := v.(string)
+			if !ok {
+				return nil, Error.New("nodeConnectionPoolCapacity not a string")
+			}
+			var err error
+			nodeConnectionPoolCapacity, err = strconv.Atoi(capacity)
+			if err != nil {
+				return nil, Error.New("nodeConnectionPoolCapacity not a number: %v", err)
+			}
+		}
+
+		nodeConnectionPoolKeyCapacity := DefaultNodeConnectionPoolKeyCapacity
+		if v, ok := m["nodeConnectionPoolKeyCapacity"]; ok {
+			capacity, ok := v.(string)
+			if !ok {
+				return nil, Error.New("nodeConnectionPoolKeyCapacity not a string")
+			}
+			var err error
+			nodeConnectionPoolKeyCapacity, err = strconv.Atoi(capacity)
+			if err != nil {
+				return nil, Error.New("nodeConnectionPoolKeyCapacity not a number: %v", err)
+			}
+		}
+
+		nodeConnectionPoolIdleExpiration := DefaultNodeConnectionPoolIdleExpiration
+		if v, ok := m["nodeConnectionPoolIdleExpiration"]; ok {
+			interval, ok := v.(string)
+			if !ok {
+				return nil, Error.New("nodeConnectionPoolIdleExpiration not a string")
+			}
+			var err error
+			nodeConnectionPoolIdleExpiration, err = time.ParseDuration(interval)
+			if err != nil {
+				return nil, Error.New("nodeConnectionPoolIdleExpiration not a duration: %v", err)
+			}
+		}
+
+		satelliteConnectionPoolCapacity := DefaultSatelliteConnectionPoolCapacity
+		if v, ok := m["satelliteConnectionPoolCapacity"]; ok {
+			capacity, ok := v.(string)
+			if !ok {
+				return nil, Error.New("satelliteConnectionPoolCapacity not a string")
+			}
+			var err error
+			satelliteConnectionPoolCapacity, err = strconv.Atoi(capacity)
+			if err != nil {
+				return nil, Error.New("satelliteConnectionPoolCapacity not a number: %v", err)
+			}
+		}
+
+		satelliteConnectionPoolKeyCapacity := DefaultSatelliteConnectionPoolKeyCapacity
+		if v, ok := m["satelliteConnectionPoolKeyCapacity"]; ok {
+			capacity, ok := v.(string)
+			if !ok {
+				return nil, Error.New("satelliteConnectionPoolKeyCapacity not a string")
+			}
+			var err error
+			satelliteConnectionPoolKeyCapacity, err = strconv.Atoi(capacity)
+			if err != nil {
+				return nil, Error.New("satelliteConnectionPoolKeyCapacity not a number: %v", err)
+			}
+		}
+
+		satelliteConnectionPoolIdleExpiration := DefaultSatelliteConnectionPoolIdleExpiration
+		if v, ok := m["satelliteConnectionPoolIdleExpiration"]; ok {
+			interval, ok := v.(string)
+			if !ok {
+				return nil, Error.New("satelliteConnectionPoolIdleExpiration not a string")
+			}
+			var err error
+			satelliteConnectionPoolIdleExpiration, err = time.ParseDuration(interval)
+			if err != nil {
+				return nil, Error.New("satelliteConnectionPoolIdleExpiration not a duration: %v", err)
+			}
+		}
+
 		return &StorjConfig{
 			cfg: storjds.Config{
-				DBURI:             dbURI,
-				Bucket:            bucket,
-				AccessGrant:       accessGrant,
+				DBURI:       dbURI,
+				Bucket:      bucket,
+				AccessGrant: accessGrant,
+
 				PackInterval:      packInterval,
 				DebugAddr:         debugAddr,
 				UpdateBloomFilter: updateBloomFilter,
+
+				NodeConnectionPoolCapacity:       nodeConnectionPoolCapacity,
+				NodeConnectionPoolKeyCapacity:    nodeConnectionPoolKeyCapacity,
+				NodeConnectionPoolIdleExpiration: nodeConnectionPoolIdleExpiration,
+
+				SatelliteConnectionPoolCapacity:       satelliteConnectionPoolCapacity,
+				SatelliteConnectionPoolKeyCapacity:    satelliteConnectionPoolKeyCapacity,
+				SatelliteConnectionPoolIdleExpiration: satelliteConnectionPoolIdleExpiration,
 			},
 		}, nil
 	}

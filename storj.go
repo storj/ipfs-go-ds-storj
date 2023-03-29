@@ -20,10 +20,12 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"storj.io/common/errs2"
+	"storj.io/common/rpc/rpcpool"
 	"storj.io/ipfs-go-ds-storj/block"
 	"storj.io/ipfs-go-ds-storj/db"
 	"storj.io/ipfs-go-ds-storj/pack"
 	"storj.io/uplink"
+	"storj.io/uplink/private/transport"
 )
 
 var mon = monkit.Package()
@@ -45,15 +47,26 @@ type Datastore struct {
 }
 
 type Config struct {
-	DBURI             string
-	AccessGrant       string
-	Bucket            string
-	PackInterval      time.Duration
-	MinPackSize       int
-	MaxPackSize       int
-	MaxPackBlocks     int
-	DebugAddr         string
+	DBURI       string
+	AccessGrant string
+	Bucket      string
+
+	PackInterval  time.Duration
+	MinPackSize   int
+	MaxPackSize   int
+	MaxPackBlocks int
+
+	DebugAddr string
+
 	UpdateBloomFilter bool
+
+	NodeConnectionPoolCapacity       int
+	NodeConnectionPoolKeyCapacity    int
+	NodeConnectionPoolIdleExpiration time.Duration
+
+	SatelliteConnectionPoolCapacity       int
+	SatelliteConnectionPoolKeyCapacity    int
+	SatelliteConnectionPoolIdleExpiration time.Duration
 }
 
 func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, error) {
@@ -68,9 +81,41 @@ func OpenDatastore(ctx context.Context, db *db.DB, conf Config) (*Datastore, err
 		return nil, Error.New("failed to parse access grant: %v", err)
 	}
 
-	project, err := uplink.Config{
+	uplinkCfg := uplink.Config{
 		UserAgent: "ipfs-go-ds-storj",
-	}.OpenProject(ctx, access)
+	}
+
+	log.Desugar().Info("Initialize Storj node connection pool",
+		zap.Int("Capacity", conf.NodeConnectionPoolCapacity),
+		zap.Int("Key Capacity", conf.NodeConnectionPoolKeyCapacity),
+		zap.Duration("Idle Expiration", conf.NodeConnectionPoolIdleExpiration),
+	)
+	err = transport.SetConnectionPool(ctx, &uplinkCfg, rpcpool.New(rpcpool.Options{
+		Name:           "default",
+		Capacity:       conf.NodeConnectionPoolCapacity,
+		KeyCapacity:    conf.NodeConnectionPoolKeyCapacity,
+		IdleExpiration: conf.NodeConnectionPoolIdleExpiration,
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	log.Desugar().Info("Initialize Storj satellite connection pool",
+		zap.Int("Capacity", conf.SatelliteConnectionPoolCapacity),
+		zap.Int("Key Capacity", conf.SatelliteConnectionPoolKeyCapacity),
+		zap.Duration("Idle Expiration", conf.SatelliteConnectionPoolIdleExpiration),
+	)
+	err = transport.SetSatelliteConnectionPool(ctx, &uplinkCfg, rpcpool.New(rpcpool.Options{
+		Name:           "satellite",
+		Capacity:       conf.SatelliteConnectionPoolCapacity,
+		KeyCapacity:    conf.SatelliteConnectionPoolKeyCapacity,
+		IdleExpiration: conf.SatelliteConnectionPoolIdleExpiration,
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	project, err := uplinkCfg.OpenProject(ctx, access)
 	if err != nil {
 		return nil, Error.New("failed to open Storj project: %s", err)
 	}
