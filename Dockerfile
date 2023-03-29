@@ -1,19 +1,19 @@
-FROM golang:1.18.10-buster as build
+FROM golang:1.19.7-buster as build
 
 ENV GO111MODULE=on
 
-WORKDIR /go-ipfs
+WORKDIR /kubo
 
 COPY build/disable-blockstore-arc-cache.patch /patches/
 
-RUN git clone https://github.com/ipfs/go-ipfs . && \
-    git checkout v0.18.1 && \
+RUN git clone https://github.com/ipfs/kubo . && \
+    git checkout v0.19.0 && \
     # Apply a patch for disabling the blockstore ARC cache
     git apply /patches/disable-blockstore-arc-cache.patch
 
-COPY . /go-ipfs/ipfs-go-ds-storj
+COPY . /kubo/ipfs-go-ds-storj
 
-# Build the go-ipfs binary with the Storj datastore plugin from the current source code.
+# Build the kubo binary with the Storj datastore plugin from the current source code.
 RUN go mod edit -replace storj.io/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
     echo "\nstorjds storj.io/ipfs-go-ds-storj/plugin 0" >> "plugin/loader/preload_list" && \
     go mod tidy && \
@@ -23,10 +23,10 @@ RUN go mod edit -replace storj.io/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
     make build
 
 # Target image
-FROM ipfs/go-ipfs:v0.18.1
+FROM ipfs/kubo:v0.19.0
 
 # Copy the ipfs from the build container.
-ENV SRC_DIR /go-ipfs
+ENV SRC_DIR /kubo
 COPY --from=build $SRC_DIR/cmd/ipfs/ipfs /usr/local/bin/ipfs
 COPY --from=build $SRC_DIR/ipfs-go-ds-storj/docker/container_daemon /usr/local/bin/start_ipfs
 

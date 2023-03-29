@@ -5,7 +5,7 @@ package pack
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 
 	"github.com/google/uuid"
 	logging "github.com/ipfs/go-log/v2"
@@ -50,7 +50,7 @@ func (store *Store) ReadBlock(ctx context.Context, packObject string, packOffset
 		err = errs.Combine(err, download.Close())
 	}()
 
-	data, err = ioutil.ReadAll(download)
+	data, err = io.ReadAll(download)
 	if err != nil {
 		return nil, Error.Wrap(err)
 	}
