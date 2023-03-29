@@ -62,7 +62,13 @@ The `config` file should include the following:
             "accessGrant": "$accessGrant",
             "packInterval": "$packInterval",
             "debugAddr": "$debugAddr",
-            "updateBloomFilter": "$updateBloomFilter"
+            "updateBloomFilter": "$updateBloomFilter",
+            "nodeConnectionPoolCapacity": "100",
+            "nodeConnectionPoolKeyCapacity": "5",
+            "nodeConnectionPoolIdleExpiration": "2m",
+            "satelliteConnectionPoolCapacity": "10",
+            "satelliteConnectionPoolKeyCapacity": "0",
+            "satelliteConnectionPoolIdleExpiration": "2m"
           },
           "mountpoint": "/",
           "prefix": "storj.datastore",
@@ -98,6 +104,18 @@ The `config` file should include the following:
 
 `$updateBloomFilter` is an optional boolean that enables the bloom filter updater. If not set, the updater is disabled. 
 
+`nodeConnectionPoolCapacity` is an optional total number of connections to keep open in the Storj node connection pool. Default: 500.
+
+`nodeConnectionPoolKeyCapacity` is an optonal maximum number of connections to keep open per Storj node in the connection pool. Zero means no limit. Default: 5.
+
+`nodeConnectionPoolIdleExpiration` is an optional duration for how long a connection in the Storj node connection pool is allowed to be kept idle. Zero means no expiraton. Default: 2m.
+
+`satelliteConnectionPoolCapacity` is an optional total number of connections to keep open in the Storj satellite connection pool. Default: 10.
+
+`satelliteConnectionPoolKeyCapacity` is an optonal maximum number of connections to keep open per Storj satellite in the connection pool. Zero means no limit. Default: 0.
+
+`satelliteConnectionPoolIdleExpiration` is an optional duration for how long a connection in the Storj satellite connection pool is allowed to be kept idle. Zero means no expiraton. Default: 2m.
+
 If you are configuring a brand new ipfs instance without any data, you can overwrite the `datastore_spec` file with:
 
 ```json
@@ -127,6 +145,12 @@ docker run --rm -d \
     -e STORJ_DEBUG_ADDR=<[host]:port> \
     -e GOLOG_FILE=/app/log/output.log \
     -e GOLOG_LOG_LEVEL="storjds=info" \
+    -e STORJ_NODE_CONNECTION_POOL_CAPACITY=100 \
+    -e STORJ_NODE_CONNECTION_POOL_KEY_CAPACITY=5 \
+    -e STORJ_NODE_CONNECTION_POOL_IDLE_EXPIRATION=2m \
+    -e STORJ_SATELLITE_CONNECTION_POOL_CAPACITY=10 \
+    -e STORJ_SATELLITE_CONNECTION_POOL_KEY_CAPACITY=0 \
+    -e STORJ_SATELLITE_CONNECTION_POOL_IDLE_EXPIRATION=2m \
     --mount type=bind,source=<log-dir>,destination=/app/log \
     storjlabs/ipfs-go-ds-storj:<tag>
 ```
@@ -166,6 +190,18 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 `GOLOG_FILE` sets the log file location. If not set, the logs are printed to the standard error.
 
 `GOLOG_LOG_LEVEL` sets the log level. The default level is ERROR. Use `storjds=<level>` to set the log level of only the Storj datastore plugin. See https://github.com/ipfs/go-log#golog_log_level for details.
+
+`STORJ_NODE_CONNECTION_POOL_CAPACITY` sets the total number of connections to keep open in the Storj node connection pool. Default: 500.
+
+`STORJ_NODE_CONNECTION_POOL_KEY_CAPACITY` sets the maximum number of connections to keep open per Storj node in the connection pool. Zero means no limit. Default: 5.
+
+`STORJ_NODE_CONNECTION_POOL_IDLE_EXPIRATION` sets how long a connection in the Storj node connection pool is allowed to be kept idle. Zero means no expiraton. Default: 2m.
+
+`STORJ_SATELLITE_CONNECTION_POOL_CAPACITY` sets the total number of connections to keep open in the Storj satellite connection pool. Default: 10.
+
+`STORJ_SATELLITE_CONNECTION_POOL_KEY_CAPACITY` sets the maximum number of connections to keep open per Storj satellite in the connection pool. Zero means no limit. Default: 0.
+
+`STORJ_SATELLITE_CONNECTION_POOL_IDLE_EXPIRATION` sets how long a connection in the Storj satellite connection pool is allowed to be kept idle. Zero means no expiraton. Default: 2m.
 
 ## License
 
