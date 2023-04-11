@@ -139,6 +139,7 @@ docker run --rm -d \
     -e IPFS_GATEWAY_USE_SUBDOMAINS=false \
     -e IPFS_GATEWAY_PORT=8080 \
     -e IPFS_API_PORT=5001 \
+    -e IPFS_INDEX_PROVIDER_URL=http://index-provider:50617 \
     -e IPFS_BLOOM_FILTER_SIZE=1048576 \
     -e STORJ_UPDATE_BLOOM_FILTER=true \
     -e STORJ_PACK_INTERVAL=5m \
@@ -174,6 +175,8 @@ Docker images are published to https://hub.docker.com/r/storjlabs/ipfs-go-ds-sto
 `IPFS_GATEWAY_PORT` can be set to change the IPFS Gateway port from the default 8080.
 
 `IPFS_API_PORT` can be set to change the IPFS HTTP API port from the default 5001.
+
+`IPFS_INDEX_PROVIDER_URL` can be set to the delegated routing URL of an [IPNI Index Provider](https://github.com/storj/ipfs-index-provider).
 
 `IPFS_ADDRESSES_SWARM` can be set to change the IPFS [Addresses.Swarm](https://github.com/ipfs/kubo/blob/master/docs/config.md#addressesswarm) config. It will overwrite the default values.
 
