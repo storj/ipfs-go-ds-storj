@@ -70,7 +70,8 @@ else
 
   # Delegated Routing config
   if [ ! -z $IPFS_INDEX_PROVIDER_URL ]; then
-    ipfs config --json Routing "{\"Methods\":{\"find-peers\":{\"RouterName\":\"WanDHT\"},\"find-providers\":{\"RouterName\":\"ParallelHelper\"},\"get-ipns\":{\"RouterName\":\"WanDHT\"},\"provide\":{\"RouterName\":\"ParallelHelper\"},\"put-ipns\":{\"RouterName\":\"WanDHT\"}},\"Routers\":{\"CidContact\":{\"Parameters\":{\"Endpoint\":\"$IPFS_INDEX_PROVIDER_URL\"},\"Type\":\"http\"},\"ParallelHelper\":{\"Parameters\":{\"Routers\":[{\"IgnoreErrors\":true,\"RouterName\":\"CidContact\",\"Timeout\":\"30m\"},{\"ExecuteAfter\":\"2s\",\"IgnoreErrors\":true,\"RouterName\":\"WanDHT\",\"Timeout\":\"30m\"}]},\"Type\":\"parallel\"},\"WanDHT\":{\"Parameters\":{\"AcceleratedDHTClient\":true,\"Mode\":\"dhtserver\",\"PublicIPNetwork\":true},\"Type\":\"dht\"}},\"Type\":\"custom\"}"
+    ipfs config --json Routing "{\"Methods\":{\"find-peers\":{\"RouterName\":\"WanDHT\"},\"find-providers\":{\"RouterName\":\"ParallelHelper\"},\"get-ipns\":{\"RouterName\":\"WanDHT\"},\"provide\":{\"RouterName\":\"ParallelHelper\"},\"put-ipns\":{\"RouterName\":\"WanDHT\"}},\"Routers\":{\"CidContact\":{\"Parameters\":{\"Endpoint\":\"$IPFS_INDEX_PROVIDER_URL\"},\"Type\":\"http\"},\"ParallelHelper\":{\"Parameters\":{\"Routers\":[{\"IgnoreErrors\":true,\"RouterName\":\"CidContact\",\"Timeout\":\"30m\"},{\"IgnoreErrors\":true,\"RouterName\":\"WanDHT\",\"Timeout\":\"30m\"}]},\"Type\":\"parallel\"},\"WanDHT\":{\"Parameters\":{\"AcceleratedDHTClient\":true,\"Mode\":\"dhtserver\",\"PublicIPNetwork\":true},\"Type\":\"dht\"}},\"Type\":\"custom\"}"
+    ipfs config --bool Experimental.AcceleratedDHTClient true
   fi
 
   # Set up the swarm key, if provided
