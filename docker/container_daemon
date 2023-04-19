@@ -31,7 +31,7 @@ else
   # Set the private key that matches the peer ID, if provided above
   if [ ! -z $IPFS_IDENTITY_PRIVATE_KEY ]; then
     # We use sed here because `ipfs config` does not allow changing the PrivKey.
-    sed -i "s/\(\"PrivKey\": \).*/\1\"$IPFS_IDENTITY_PRIVATE_KEY\"/" $repo/config
+    sed -i "s~\(\"PrivKey\": \).*~\1\"$IPFS_IDENTITY_PRIVATE_KEY\"~" $repo/config
   fi
 
   # HTTP API port config
