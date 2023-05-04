@@ -7,7 +7,7 @@ WORKDIR /kubo
 COPY build/disable-blockstore-arc-cache.patch /patches/
 
 RUN git clone https://github.com/ipfs/kubo . && \
-    git checkout v0.19.1 && \
+    git checkout v0.19.2 && \
     # Apply a patch for disabling the blockstore ARC cache
     git apply /patches/disable-blockstore-arc-cache.patch
 
@@ -23,7 +23,7 @@ RUN go mod edit -replace storj.io/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
     make build
 
 # Target image
-FROM ipfs/kubo:v0.19.1
+FROM ipfs/kubo:v0.19.2
 
 # Copy the ipfs from the build container.
 ENV SRC_DIR /kubo
