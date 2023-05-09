@@ -18,10 +18,10 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/text v0.7.0
-	storj.io/common v0.0.0-20230428200501-099739f940f7
-	storj.io/private v0.0.0-20230405095015-9e5bbc1c7ca8
-	storj.io/storj v0.12.1-0.20230504103610-8a206f0aee85
-	storj.io/uplink v1.10.1-0.20230502202719-3456d6444dd6
+	storj.io/common v0.0.0-20230505225722-b93acdb3feba
+	storj.io/private v0.0.0-20230504144224-245360dc8212
+	storj.io/storj v0.12.1-0.20230509102713-1003d8213c5f
+	storj.io/uplink v1.10.1-0.20230505231818-081bed2b8f07
 	storj.io/zipper v0.0.0-20220124122551-2ac2d53a46f6
 )
 
@@ -242,7 +242,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
-	storj.io/drpc v0.0.33-0.20230417171205-2ca712ef4ab5 // indirect
+	storj.io/drpc v0.0.33 // indirect
 	storj.io/monkit-jaeger v0.0.0-20220915074555-d100d7589f41 // indirect
 	storj.io/picobuf v0.0.1 // indirect
 )
