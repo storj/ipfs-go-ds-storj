@@ -11,7 +11,7 @@ import (
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
-	_ "github.com/jackc/pgx/v4/stdlib" // registers pgx as a tagsql driver.
+	_ "github.com/jackc/pgx/v5/stdlib" // registers pgx as a tagsql driver.
 	"github.com/spacemonkeygo/monkit/v3"
 	"github.com/zeebo/errs"
 
