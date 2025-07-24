@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS build
+FROM golang:1.24-alpine AS build
 
 ENV GO111MODULE=on
 
@@ -9,7 +9,7 @@ WORKDIR /kubo
 
 # COPY build/disable-blockstore-arc-cache.patch /patches/
 
-RUN git clone https://github.com/ipfs/kubo . && git checkout v0.30.0
+RUN git clone https://github.com/ipfs/kubo . && git checkout v0.36.0
 # && git apply /patches/disable-blockstore-arc-cache.patch
 
 COPY . /kubo/ipfs-go-ds-storj
@@ -30,7 +30,7 @@ RUN go mod edit -replace storj.io/ipfs-go-ds-storj=./ipfs-go-ds-storj && \
 
 # Target image
 
-FROM ipfs/kubo:v0.30.0
+FROM ipfs/kubo:v0.36.0
 
 # Copy the ipfs from the build container.
 ENV SRC_DIR /kubo
